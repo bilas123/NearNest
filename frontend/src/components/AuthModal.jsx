@@ -73,22 +73,20 @@ export function AuthModal({ isOpen, onClose, onAuthSuccess }) {
             <button
               type="button"
               onClick={() => setIsSignUp(false)}
-              className={`py-2 text-xs font-semibold rounded-xl transition-all cursor-pointer ${
-                !isSignUp
+              className={`py-2 text-xs font-semibold rounded-xl transition-all cursor-pointer ${!isSignUp
                   ? "bg-white text-gray-900 shadow-xs"
                   : "text-gray-500 hover:text-gray-900"
-              }`}
+                }`}
             >
               Sign In
             </button>
             <button
               type="button"
               onClick={() => setIsSignUp(true)}
-              className={`py-2 text-xs font-semibold rounded-xl transition-all cursor-pointer ${
-                isSignUp
+              className={`py-2 text-xs font-semibold rounded-xl transition-all cursor-pointer ${isSignUp
                   ? "bg-white text-gray-900 shadow-xs"
                   : "text-gray-500 hover:text-gray-900"
-              }`}
+                }`}
             >
               Sign Up
             </button>

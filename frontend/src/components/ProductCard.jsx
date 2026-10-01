@@ -2,7 +2,7 @@ import React from "react";
 import { Link } from "react-router-dom";
 import { MapPin, ArrowUpRight } from "lucide-react";
 
-export function ProductCard({ product, onSelect }) {
+export function ProductCard({ product, onSelect, onSelectSeller }) {
   // Format price display based on listing type
   const renderPrice = () => {
     if (product.listingType === "donate") {
@@ -84,9 +84,18 @@ export function ProductCard({ product, onSelect }) {
         {/* Location & Seller Reliability */}
         <p className="text-xs text-gray-500 mt-0.5 mb-1.5">{product.location}</p>
 
-        {/* Seller Reliability Badge */}
+        {/* Seller Reliability Badge (Clickable) */}
         {product.reliabilityScore && (
-          <div className="flex items-center space-x-1.5 text-[11px] mb-3">
+          <div
+            onClick={(e) => {
+              if (onSelectSeller) {
+                e.stopPropagation();
+                onSelectSeller(product);
+              }
+            }}
+            className="inline-flex items-center space-x-1.5 text-[11px] mb-3 p-1 -ml-1 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer w-fit"
+            title="Click to view seller reliability score"
+          >
             <span className="flex items-center text-amber-500 font-bold">
               ★ {product.sellerRating || "5.0"}
             </span>

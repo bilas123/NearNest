@@ -109,11 +109,10 @@ export function CreateListingModal({ isOpen, onClose, onCreateListing }) {
                   onClick={() =>
                     setFormData({ ...formData, listingType: item.type })
                   }
-                  className={`p-2.5 rounded-xl border text-center transition-all cursor-pointer hover:scale-102 active:scale-95 ${
-                    formData.listingType === item.type
+                  className={`p-2.5 rounded-xl border text-center transition-all cursor-pointer hover:scale-102 active:scale-95 ${formData.listingType === item.type
                       ? "border-emerald-600 bg-emerald-50 text-emerald-800 font-semibold shadow-xs"
                       : "border-gray-200 text-gray-600 hover:border-gray-300"
-                  }`}
+                    }`}
                 >
                   <div className="text-xs font-bold capitalize">{item.label}</div>
                   <div className="text-[10px] text-gray-500">{item.desc}</div>

@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { X, MapPin, User, ShieldCheck, CheckCircle2, Star } from "lucide-react";
 
-export function ProductDetailsModal({ product, onClose }) {
+export function ProductDetailsModal({ product, onClose, onViewSeller }) {
   const [isRequested, setIsRequested] = useState(false);
 
   if (!product) return null;
@@ -68,8 +68,8 @@ export function ProductDetailsModal({ product, onClose }) {
                 {product.listingType === "donate"
                   ? "Free"
                   : product.listingType === "rent"
-                  ? `₹${product.price}/day`
-                  : `₹${product.price}`}
+                    ? `₹${product.price}/day`
+                    : `₹${product.price}`}
               </p>
             </div>
 
@@ -84,7 +84,11 @@ export function ProductDetailsModal({ product, onClose }) {
             </div>
 
             {/* Seller & Location Information */}
-            <div className="bg-gray-50 rounded-2xl p-4 border border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div
+              onClick={() => onViewSeller && onViewSeller(product)}
+              className="bg-gray-50 hover:bg-gray-100 transition-colors rounded-2xl p-4 border border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 cursor-pointer"
+              title="Click to view seller reliability score"
+            >
               <div className="flex items-center space-x-3">
                 <div className="w-10 h-10 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-sm">
                   <User className="w-5 h-5" />

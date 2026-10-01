@@ -8,6 +8,7 @@ export function Navbar({
   onOpenAuth,
   onSignOut,
   onSelectCategory,
+  onOpenDashboard,
 }) {
   const [isOpen, setIsOpen] = useState(false);
 
@@ -53,7 +54,7 @@ export function Navbar({
 
         {/* Desktop Navigation Links */}
         <nav className="hidden md:flex items-center space-x-1">
-          {["Marketplace", "Rentals", "Donations"].map((item) => (
+          {["Marketplace", "I Need This", "Rentals", "Donations"].map((item) => (
             <button
               key={item}
               onClick={() => handleCategoryNav(item)}
@@ -68,7 +69,7 @@ export function Navbar({
         <div className="hidden md:flex items-center space-x-2.5">
           <button
             onClick={handlePostItemClick}
-            className="inline-flex items-center space-x-1 px-3.5 py-1.5 text-xs font-semibold text-white bg-emerald-600 rounded-full hover:bg-emerald-700 hover:shadow-md hover:shadow-emerald-600/25 hover:scale-105 active:scale-95 transition-all duration-200 cursor-pointer"
+            className="inline-flex items-center space-x-1 px-3.5 py-1.5 text-xs font-bold text-gray-900 bg-[#FFB703] rounded-full hover:bg-[#f0ac00] hover:shadow-md hover:scale-105 active:scale-95 transition-all duration-200 cursor-pointer shadow-xs"
           >
             <PlusCircle className="w-3.5 h-3.5" />
             <span>Post Item</span>
@@ -76,12 +77,18 @@ export function Navbar({
 
           {currentUser ? (
             <div className="flex items-center space-x-2 pl-2 border-l border-gray-200">
-              <div className="w-7 h-7 rounded-full bg-emerald-100 text-emerald-800 font-bold text-xs flex items-center justify-center">
-                {currentUser.name ? currentUser.name[0].toUpperCase() : "U"}
-              </div>
-              <span className="text-xs font-semibold text-gray-800">
-                {currentUser.name.split(" ")[0]}
-              </span>
+              <button
+                onClick={onOpenDashboard}
+                className="flex items-center space-x-2 hover:opacity-80 cursor-pointer"
+                title="Open My Dashboard"
+              >
+                <div className="w-7 h-7 rounded-full bg-emerald-600 text-white font-bold text-xs flex items-center justify-center">
+                  {currentUser.name ? currentUser.name[0].toUpperCase() : "U"}
+                </div>
+                <span className="text-xs font-semibold text-gray-800">
+                  {currentUser.name.split(" ")[0]}
+                </span>
+              </button>
               <button
                 onClick={onSignOut}
                 className="text-[11px] text-gray-400 hover:text-red-500 hover:underline cursor-pointer"
@@ -92,7 +99,7 @@ export function Navbar({
           ) : (
             <button
               onClick={handleAuthClick}
-              className="px-3.5 py-1.5 text-xs font-semibold text-gray-700 rounded-full hover:bg-gray-100 hover:scale-105 active:scale-95 transition-all cursor-pointer"
+              className="px-4 py-1.5 text-xs font-semibold text-gray-700 rounded-full hover:bg-gray-100 hover:scale-105 active:scale-95 transition-all cursor-pointer border border-gray-200"
             >
               Sign In
             </button>
@@ -112,14 +119,21 @@ export function Navbar({
       {/* Mobile Dropdown Menu */}
       {isOpen && (
         <div className="absolute top-20 left-4 right-4 bg-white/95 backdrop-blur-md rounded-2xl p-4 shadow-xl border border-gray-100 md:hidden flex flex-col space-y-2">
-          {currentUser && (
-            <div className="p-3 bg-emerald-50 rounded-xl mb-1 flex items-center justify-between">
+          {currentUser ? (
+            <div
+              onClick={() => {
+                onOpenDashboard();
+                setIsOpen(false);
+              }}
+              className="p-3 bg-emerald-50 rounded-xl mb-1 flex items-center justify-between cursor-pointer"
+            >
               <div>
-                <p className="text-xs font-bold text-emerald-900">{currentUser.name}</p>
+                <p className="text-xs font-bold text-emerald-900">{currentUser.name} • Dashboard</p>
                 <p className="text-[10px] text-emerald-700">{currentUser.location}</p>
               </div>
               <button
-                onClick={() => {
+                onClick={(e) => {
+                  e.stopPropagation();
                   onSignOut();
                   setIsOpen(false);
                 }}
@@ -128,9 +142,9 @@ export function Navbar({
                 Logout
               </button>
             </div>
-          )}
+          ) : null}
 
-          {["Marketplace", "Rentals", "Donations"].map((item) => (
+          {["Marketplace", "I Need This", "Rentals", "Donations"].map((item) => (
             <button
               key={item}
               onClick={() => handleCategoryNav(item)}
@@ -151,7 +165,7 @@ export function Navbar({
 
           <button
             onClick={handlePostItemClick}
-            className="inline-flex items-center justify-center space-x-2 w-full py-2.5 bg-emerald-600 text-white rounded-xl font-medium shadow-md hover:bg-emerald-700 active:scale-95 transition-all cursor-pointer"
+            className="inline-flex items-center justify-center space-x-2 w-full py-2.5 bg-[#FFB703] text-gray-900 rounded-xl font-bold shadow-md hover:bg-[#f0ac00] active:scale-95 transition-all cursor-pointer"
           >
             <PlusCircle className="w-4 h-4" />
             <span>Post Item</span>

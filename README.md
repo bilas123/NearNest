@@ -4,6 +4,10 @@ A college lab project built with the MERN stack (MongoDB, Express, React, Node.j
 
 ---
 
+📖 **Architecture & System Design:** Check out [SYSTEM_DESIGN.md](./SYSTEM_DESIGN.md) for complete architecture diagrams, database schemas, and request lifecycles.
+
+---
+
 ## 🛠️ Tech Stack
 
 - **Frontend:** React, Vite, Tailwind CSS, Lucide Icons
