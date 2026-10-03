@@ -1,5 +1,4 @@
-// Mock product data for NearNest marketplace
-// Designed to match the exact schema we will use later in MongoDB
+
 
 export const mockProducts = [
   {

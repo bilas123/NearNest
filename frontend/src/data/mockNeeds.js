@@ -1,5 +1,4 @@
-// Mock community requests for "I Need This" board
-// Designed simply for 3rd-year lab project demonstration
+
 
 export const mockNeeds = [
   {
