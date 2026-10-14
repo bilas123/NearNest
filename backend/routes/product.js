@@ -1,4 +1,5 @@
 const express = require("express");
+const mongoose = require("mongoose");
 const Product = require("../models/product");
 const auth = require("../middleware/auth");
 
@@ -34,6 +35,10 @@ router.get("/", async (req, res) => {
 // GET /api/products/:id — get single product (public)
 router.get("/:id", async (req, res) => {
   try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(404).json({ message: "Product not found" });
+    }
+
     const product = await Product.findById(req.params.id)
       .populate("seller", "name email");
 
@@ -51,7 +56,7 @@ router.get("/:id", async (req, res) => {
 // POST /api/products — create product (login required)
 router.post("/", auth, async (req, res) => {
   try {
-    const { title, description, price, listingType, category, condition, location, image } = req.body;
+    const { title, description, price, listingType, category, condition, location, coordinates, image } = req.body;
 
     if (!title || !description || !listingType || !category) {
       return res.status(400).json({ message: "Title, description, listing type, and category are required" });
@@ -66,6 +71,7 @@ router.post("/", auth, async (req, res) => {
       category,
       condition,
       location,
+      coordinates: Array.isArray(coordinates) && coordinates.length === 2 ? coordinates : undefined,
       image,
     });
 
@@ -79,6 +85,10 @@ router.post("/", auth, async (req, res) => {
 // PUT /api/products/:id — update product (only owner)
 router.put("/:id", auth, async (req, res) => {
   try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(404).json({ message: "Product not found" });
+    }
+
     const product = await Product.findById(req.params.id);
 
     if (!product) {
@@ -103,6 +113,10 @@ router.put("/:id", auth, async (req, res) => {
 // DELETE /api/products/:id — delete product (only owner)
 router.delete("/:id", auth, async (req, res) => {
   try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(404).json({ message: "Product not found" });
+    }
+
     const product = await Product.findById(req.params.id);
 
     if (!product) {

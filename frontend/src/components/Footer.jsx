@@ -9,7 +9,7 @@ const SAFETY_TIPS = [
   "Check seller reliability ratings before trading.",
 ];
 
-export function Footer() {
+export function Footer({ onOpenAdmin }) {
   return (
     <footer className="mt-20 border-t border-gray-200/80 dark:border-gray-800 bg-white/90 dark:bg-gray-900/90 transition-colors">
       <div className="max-w-6xl mx-auto px-4 py-12">
@@ -65,7 +65,16 @@ export function Footer() {
         {/* Bottom */}
         <div className="pt-6 border-t border-gray-100 dark:border-gray-800 flex flex-col sm:flex-row items-center justify-between text-xs text-gray-400 gap-2">
           <p>© {new Date().getFullYear()} NearNest — Hyperlocal E-Commerce Lab Project</p>
-          <p>Built by TYPICAL-CHAPRIS 🃏</p>
+          <div className="flex items-center space-x-4">
+            <button
+              onClick={onOpenAdmin}
+              className="text-emerald-600 dark:text-emerald-400 font-bold hover:underline cursor-pointer"
+            >
+              Lab Admin View ↗
+            </button>
+            <span>•</span>
+            <p>Built by TYPICAL-CHAPRIS 🃏</p>
+          </div>
         </div>
       </div>
     </footer>

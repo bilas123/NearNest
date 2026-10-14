@@ -1,47 +1,39 @@
-import React, { useState } from "react";
-import { X, User, PlusCircle, Check, Trash2, Package, Heart, ShoppingBag, Mail, MapPin, Star } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { X, User } from "lucide-react";
+import { ListingsTab } from "./ListingsTab";
+import { OrdersTab } from "./OrdersTab";
+import { ProfileTab } from "./ProfileTab";
 
-// Mock orders (will come from backend in Phase 5)
-const MOCK_ORDERS = [
-  { id: "order-1", product: "DS & Algorithms Textbook", seller: "Arjun Patel", price: 250, type: "buy", status: "confirmed", date: "2026-09-28" },
-  { id: "order-2", product: "Casio fx-991ES Calculator", seller: "Sneha Gupta", price: 40, type: "rent", days: 3, status: "pending", date: "2026-10-01" },
-  { id: "order-3", product: "Wooden Study Table", seller: "Priya Sharma", price: 0, type: "donate", status: "completed", date: "2026-09-20" },
-];
-
-// Simple status badge colors
-const STATUS_COLORS = {
-  pending: "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300",
-  confirmed: "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300",
-  completed: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300",
-  cancelled: "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400",
-};
-
-// Reusable empty state
-function EmptyState({ icon: Icon, title, subtitle }) {
-  return (
-    <div className="py-10 text-center space-y-2">
-      <Icon className="w-10 h-10 text-gray-300 dark:text-gray-600 mx-auto" />
-      <p className="text-gray-400 font-medium text-xs">{title}</p>
-      {subtitle && <p className="text-gray-400 text-[11px]">{subtitle}</p>}
-    </div>
-  );
-}
-
-// Common styles used across tabs
 const cardStyle = "p-3.5 bg-gray-50 dark:bg-gray-700/50 rounded-2xl border border-gray-200/80 dark:border-gray-600";
-const sectionLabel = "font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider text-[11px]";
 
-export function UserDashboardModal({ isOpen, onClose, currentUser, products, onOpenCreateListing, onDeleteListing }) {
+export function UserDashboardModal({ isOpen, onClose, currentUser, onUpdateUser, products, onOpenCreateListing, onDeleteListing }) {
   const [activeTab, setActiveTab] = useState("listings");
-  const [orders] = useState(MOCK_ORDERS);
-  const [wishlist] = useState([]);
-  const [requests, setRequests] = useState([
-    { id: "req-1", item: "Casio Calculator", from: "Rahul Sharma", duration: "2 days", price: "₹40/day", status: "pending" },
-  ]);
+  const [myOrders, setMyOrders] = useState([]);
+  const [sellerRequests, setSellerRequests] = useState([]);
+  const [loading, setLoading] = useState(false);
+
+  // Fetch orders when orders tab is active
+  useEffect(() => {
+    if (!isOpen || !currentUser || activeTab !== "orders") return;
+    const token = localStorage.getItem("token");
+    if (!token) return;
+
+    setLoading(true);
+    Promise.all([
+      fetch("/api/orders/my-orders", { headers: { Authorization: `Bearer ${token}` } }).then((r) => r.json()),
+      fetch("/api/orders/seller-requests", { headers: { Authorization: `Bearer ${token}` } }).then((r) => r.json()),
+    ])
+      .then(([buyers, sellers]) => {
+        setMyOrders(Array.isArray(buyers) ? buyers : []);
+        setSellerRequests(Array.isArray(sellers) ? sellers : []);
+      })
+      .catch(() => { setMyOrders([]); setSellerRequests([]); })
+      .finally(() => setLoading(false));
+  }, [isOpen, activeTab, currentUser]);
 
   if (!isOpen) return null;
 
-  // Not logged in
+  // Not logged in guard
   if (!currentUser) {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
@@ -57,44 +49,17 @@ export function UserDashboardModal({ isOpen, onClose, currentUser, products, onO
   }
 
   const user = currentUser;
-
-  // Match listings by seller ID (backend products have seller._id or seller as string)
-  const userListings = products.filter((p) => {
-    const sellerId = p.seller?._id || p.seller;
-    return sellerId === user.id;
-  });
-
-  // Delete listing from backend, then remove from local state
-  const handleDelete = async (productId) => {
-    try {
-      const token = localStorage.getItem("token");
-      const res = await fetch(`/api/products/${productId}`, {
-        method: "DELETE",
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) {
-        const data = await res.json();
-        alert(data.message || "Failed to delete");
-        return;
-      }
-      onDeleteListing?.(productId);
-    } catch (err) {
-      alert("Could not delete — server may be offline");
-    }
-  };
+  const userListings = products.filter((p) => (p.seller?._id || p.seller) === user.id);
 
   const TABS = [
     { key: "listings", label: "Listings", count: userListings.length },
-    { key: "orders", label: "Orders", count: orders.length },
-    { key: "wishlist", label: "Wishlist", count: wishlist.length },
+    { key: "orders", label: "Orders", count: myOrders.length + sellerRequests.length },
     { key: "profile", label: "Profile", count: null },
   ];
 
-  // Helper to show price text for a listing
-  const priceText = (item) => {
-    if (item.listingType === "donate") return "Free";
-    if (item.listingType === "rent") return `₹${item.price}/day`;
-    return `₹${item.price}`;
+  // Update a single order's status locally after seller action
+  const handleUpdateOrder = (orderId, status) => {
+    setSellerRequests((prev) => prev.map((o) => (o._id === orderId ? { ...o, status } : o)));
   };
 
   return (
@@ -134,163 +99,21 @@ export function UserDashboardModal({ isOpen, onClose, currentUser, products, onO
 
         {/* Tab Content */}
         <div className="p-5 overflow-y-auto text-xs flex-1 space-y-3">
-
-          {/* LISTINGS TAB */}
           {activeTab === "listings" && (
-            <>
-              <div className="flex items-center justify-between">
-                <span className={sectionLabel}>Your Listings</span>
-                <button onClick={() => { onClose(); onOpenCreateListing(); }}
-                  className="inline-flex items-center space-x-1 px-3 py-1 bg-[#FFB703] text-gray-900 font-bold rounded-full hover:bg-[#f0ac00] cursor-pointer text-[11px]">
-                  <PlusCircle className="w-3.5 h-3.5" /><span>New Item</span>
-                </button>
-              </div>
-
-              {userListings.length === 0 ? (
-                <EmptyState icon={ShoppingBag} title="No listings yet" subtitle="Post your first item!" />
-              ) : (
-                userListings.map((item) => (
-                  <div key={item._id} className={`${cardStyle} flex items-center justify-between`}>
-                    <div>
-                      <p className="font-bold text-gray-900 dark:text-white text-sm">{item.title}</p>
-                      <p className="text-gray-500 mt-0.5">{item.listingType} • {priceText(item)}</p>
-                    </div>
-                    <button onClick={() => handleDelete(item._id)} className="p-2 text-gray-400 hover:text-red-600 rounded-xl cursor-pointer">
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                ))
-              )}
-            </>
+            <ListingsTab userListings={userListings} onClose={onClose} onOpenCreateListing={onOpenCreateListing} onDeleteListing={onDeleteListing} />
           )}
 
-          {/* ORDERS TAB */}
           {activeTab === "orders" && (
-            <>
-              {/* Incoming requests (as seller) */}
-              {requests.length > 0 && (
-                <>
-                  <span className={sectionLabel}>Incoming Requests</span>
-                  {requests.map((req) => (
-                    <div key={req.id} className={`${cardStyle} space-y-2`}>
-                      <div className="flex justify-between">
-                        <p className="font-bold text-gray-900 dark:text-white text-sm">{req.item}</p>
-                        <span className="text-[10px] font-bold px-2 py-0.5 bg-amber-100 dark:bg-amber-800/50 text-amber-800 dark:text-amber-200 rounded-full">{req.price}</span>
-                      </div>
-                      <p className="text-gray-500"><strong className="text-gray-800 dark:text-gray-200">{req.from}</strong> wants this for {req.duration}</p>
-                      {req.status === "pending" ? (
-                        <div className="flex space-x-2">
-                          <button onClick={() => setRequests(requests.map((r) => r.id === req.id ? { ...r, status: "accepted" } : r))}
-                            className="flex-1 py-1.5 bg-emerald-600 text-white font-bold rounded-xl cursor-pointer flex items-center justify-center space-x-1">
-                            <Check className="w-3.5 h-3.5" /><span>Accept</span>
-                          </button>
-                          <button onClick={() => setRequests(requests.map((r) => r.id === req.id ? { ...r, status: "declined" } : r))}
-                            className="px-4 py-1.5 bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 font-semibold rounded-xl cursor-pointer">
-                            Decline
-                          </button>
-                        </div>
-                      ) : (
-                        <p className="p-2 rounded-xl text-center font-bold bg-gray-100 dark:bg-gray-700 text-gray-500">
-                          {req.status === "accepted" ? "✓ Accepted" : "Declined"}
-                        </p>
-                      )}
-                    </div>
-                  ))}
-                </>
-              )}
-
-              {/* My orders (as buyer) */}
-              <span className={sectionLabel}>My Orders</span>
-              {orders.length === 0 ? (
-                <EmptyState icon={Package} title="No orders yet" subtitle="Buy or rent something to see it here." />
-              ) : (
-                orders.map((order) => (
-                  <div key={order.id} className={`${cardStyle} space-y-2`}>
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <p className="font-bold text-gray-900 dark:text-white text-sm">{order.product}</p>
-                        <p className="text-gray-500 mt-0.5">from {order.seller}</p>
-                      </div>
-                      <span className={`text-[10px] font-bold px-2 py-1 rounded-full capitalize ${STATUS_COLORS[order.status]}`}>
-                        {order.status}
-                      </span>
-                    </div>
-                    <div className="flex justify-between text-[11px] text-gray-400 pt-1 border-t border-gray-100 dark:border-gray-600">
-                      <span>{order.type === "rent" ? `₹${order.price}/day × ${order.days}d` : order.type === "donate" ? "Free" : `₹${order.price}`}</span>
-                      <span>{order.date}</span>
-                    </div>
-                  </div>
-                ))
-              )}
-            </>
+            <OrdersTab myOrders={myOrders} sellerRequests={sellerRequests} loading={loading} onUpdateOrder={handleUpdateOrder} />
           )}
 
-          {/* WISHLIST TAB */}
-          {activeTab === "wishlist" && (
-            <>
-              <span className={sectionLabel}>Saved Items</span>
-              {wishlist.length === 0 ? (
-                <EmptyState icon={Heart} title="Wishlist is empty" subtitle="Tap ♡ on any product to save it here." />
-              ) : (
-                wishlist.map((item) => (
-                  <div key={item._id} className={`${cardStyle} flex items-center justify-between`}>
-                    <div>
-                      <p className="font-bold text-gray-900 dark:text-white text-sm">{item.title}</p>
-                      <p className="text-gray-500 mt-0.5">{priceText(item)}</p>
-                    </div>
-                    <Heart className="w-4 h-4 text-red-400 fill-current" />
-                  </div>
-                ))
-              )}
-            </>
-          )}
-
-          {/* PROFILE TAB */}
           {activeTab === "profile" && (
-            <>
-              <span className={sectionLabel}>My Profile</span>
-              <div className={`${cardStyle} space-y-4`}>
-                <div className="flex items-center space-x-4">
-                  <div className="w-14 h-14 rounded-full bg-emerald-600 text-white font-bold text-xl flex items-center justify-center">
-                    {user.name?.[0]?.toUpperCase() || "U"}
-                  </div>
-                  <div>
-                    <h4 className="font-bold text-gray-900 dark:text-white text-base">{user.name}</h4>
-                    <p className="text-gray-500 text-[11px]">NearNest Member</p>
-                  </div>
-                </div>
-
-                <div className="space-y-2 pt-2 border-t border-gray-200/80 dark:border-gray-600">
-                  {[
-                    { icon: Mail, label: "Email", value: user.email },
-                    { icon: MapPin, label: "Location", value: user.location || "Not set" },
-                    { icon: Star, label: "Rating", value: `★ ${user.sellerRating || 4.9} • ${user.sellerTrades || 0} trades` },
-                  ].map((field) => (
-                    <div key={field.label} className="flex items-center space-x-3">
-                      <field.icon className="w-4 h-4 text-gray-400" />
-                      <div>
-                        <p className="text-[10px] text-gray-400 uppercase font-bold">{field.label}</p>
-                        <p className="text-sm text-gray-900 dark:text-white">{field.value}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Stats */}
-              <div className="grid grid-cols-3 gap-3">
-                {[
-                  { label: "Listings", count: userListings.length, color: "emerald" },
-                  { label: "Orders", count: orders.length, color: "blue" },
-                  { label: "Wishlist", count: wishlist.length, color: "rose" },
-                ].map((stat) => (
-                  <div key={stat.label} className={`p-3 bg-${stat.color}-50 dark:bg-${stat.color}-900/20 rounded-xl text-center`}>
-                    <p className={`text-lg font-bold text-${stat.color}-700 dark:text-${stat.color}-300`}>{stat.count}</p>
-                    <p className={`text-[10px] text-${stat.color}-600 dark:text-${stat.color}-400 font-medium`}>{stat.label}</p>
-                  </div>
-                ))}
-              </div>
-            </>
+            <ProfileTab
+              currentUser={currentUser}
+              onUpdateUser={onUpdateUser}
+              userListingsCount={userListings.length}
+              myOrdersCount={myOrders.length}
+            />
           )}
         </div>
       </div>

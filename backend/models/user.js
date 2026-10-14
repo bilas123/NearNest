@@ -29,6 +29,18 @@ const userSchema = new mongoose.Schema({
     type: Date,
     default: null,
   },
+  phone: {
+    type: String,
+    default: "",
+  },
+  address: {
+    type: String,
+    default: "Campus Area",
+  },
+  location: {
+    type: { type: String, default: "Point" },
+    coordinates: { type: [Number], default: [0, 0] }, // [longitude, latitude]
+  },
 }, { timestamps: true });
 
 module.exports = mongoose.model("User", userSchema);

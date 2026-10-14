@@ -7,13 +7,14 @@ import { ProductDetailsModal } from "./components/ProductDetailsModal";
 import { CreateListingModal } from "./components/CreateListingModal";
 import { AuthModal } from "./components/AuthModal";
 import { Footer } from "./components/Footer";
-import { mockProducts } from "./data/mockProducts";
 import { mockNeeds } from "./data/mockNeeds";
 import { NeedsBoard } from "./components/NeedsBoard";
 import { CreateNeedModal } from "./components/CreateNeedModal";
 import { SellerProfileModal } from "./components/SellerProfileModal";
 import { UserDashboardModal } from "./components/UserDashboardModal";
 import { FloatingContact } from "./components/FloatingContact";
+import { AdminModal } from "./components/AdminModal";
+import { getCurrentCoordinates, getDistanceInKm } from "./utils/location";
 
 const CATEGORIES = [
   "All",
@@ -27,7 +28,8 @@ const CATEGORIES = [
 ];
 
 function App() {
-  const [products, setProducts] = useState(mockProducts);
+  const [products, setProducts] = useState([]);
+  const [loadingProducts, setLoadingProducts] = useState(true);
   const [needs, setNeeds] = useState(mockNeeds);
   const [activeTab, setActiveTab] = useState("marketplace"); // "marketplace" or "needs"
   const [activeCategory, setActiveCategory] = useState("All");
@@ -39,7 +41,9 @@ function App() {
   const [isDashboardOpen, setIsDashboardOpen] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [isAdminOpen, setIsAdminOpen] = useState(false);
   const [sortBy, setSortBy] = useState("default");
+  const [buyerCoords, setBuyerCoords] = useState(null);
   const [isDarkMode, setIsDarkMode] = useState(() => {
     return localStorage.getItem("nearnest_theme") === "dark";
   });
@@ -82,7 +86,9 @@ function App() {
             id: data.user._id,
             name: data.user.name,
             email: data.user.email,
-            location: "College Campus / Local Area",
+            phone: data.user.phone || "",
+            address: data.user.address || "",
+            location: data.user.address || "College Campus / Local Area",
             reliabilityScore: "100%",
             sellerRating: 5.0,
             sellerTrades: 0,
@@ -98,16 +104,36 @@ function App() {
   // Fetch real products from backend on page load
   useEffect(() => {
     async function fetchProducts() {
+      setLoadingProducts(true);
       try {
         const res = await fetch("/api/products");
         if (!res.ok) throw new Error("Failed to fetch");
         const data = await res.json();
-        if (data.length > 0) setProducts(data);
+        if (Array.isArray(data)) setProducts(data);
       } catch (err) {
-        console.log("Using mock data — backend not available:", err.message);
+        console.error("Could not fetch products from server:", err.message);
+      } finally {
+        setLoadingProducts(false);
       }
     }
     fetchProducts();
+  }, []);
+
+  // Fetch live community requests from backend
+  useEffect(() => {
+    async function fetchNeeds() {
+      try {
+        const res = await fetch("/api/needs");
+        if (!res.ok) return;
+        const data = await res.json();
+        if (Array.isArray(data) && data.length > 0) {
+          setNeeds(data);
+        }
+      } catch (err) {
+        console.warn("Could not fetch needs from server:", err.message);
+      }
+    }
+    fetchNeeds();
   }, []);
 
   const handleSignOut = () => {
@@ -138,9 +164,13 @@ function App() {
   // Sort products by distance, reliability, or price
   const sortedProducts = [...filteredProducts].sort((a, b) => {
     if (sortBy === "distance") {
-      const distA = parseFloat(a.distance) || 999;
-      const distB = parseFloat(b.distance) || 999;
-      return distA - distB;
+      const getDist = (item) => {
+        if (buyerCoords && item.coordinates?.length === 2) {
+          return getDistanceInKm(buyerCoords.latitude, buyerCoords.longitude, item.coordinates[1], item.coordinates[0]) ?? 999;
+        }
+        return parseFloat(item.distance) || 999;
+      };
+      return getDist(a) - getDist(b);
     }
     if (sortBy === "reliability") {
       const scoreA = parseFloat(a.reliabilityScore) || 0;
@@ -155,6 +185,19 @@ function App() {
     }
     return 0;
   });
+
+  // Handle Sort selection (acquires GPS when selecting Nearest First)
+  const handleSortChange = async (val) => {
+    setSortBy(val);
+    if (val === "distance" && !buyerCoords) {
+      try {
+        const coords = await getCurrentCoordinates();
+        setBuyerCoords(coords);
+      } catch {
+        // Fall back gracefully
+      }
+    }
+  };
 
   const handleResetFilters = () => {
     setActiveCategory("All");
@@ -171,7 +214,15 @@ function App() {
   };
 
   const handleCreateNeed = (newNeed) => {
-    setNeeds([newNeed, ...needs]);
+    setNeeds((prev) => [newNeed, ...prev]);
+  };
+
+  const handleOpenCreateNeed = () => {
+    if (!currentUser) {
+      setIsAuthModalOpen(true);
+      return;
+    }
+    setIsCreateNeedOpen(true);
   };
 
   const handleNavSelect = (item) => {
@@ -196,6 +247,7 @@ function App() {
         onSignOut={handleSignOut}
         onSelectCategory={handleNavSelect}
         onOpenDashboard={() => setIsDashboardOpen(true)}
+        onOpenAdmin={() => setIsAdminOpen(true)}
         isDarkMode={isDarkMode}
         onToggleDarkMode={handleToggleDarkMode}
       />
@@ -204,10 +256,10 @@ function App() {
         {/* Hero Section */}
         <section className="text-center py-6 sm:py-8">
           <h1 className="text-3xl sm:text-4xl font-extrabold text-gray-900 dark:text-white tracking-tight mb-2">
-            Hyperlocal Circular Marketplace
+            Kolkata Campus & Student Marketplace
           </h1>
           <p className="text-gray-600 dark:text-gray-300 max-w-xl mx-auto text-sm sm:text-base mb-6">
-            Discover books, electronics, tools, cycles, and household essentials available right now from neighbors nearby.
+            Buy, rent, and donate B.Tech engineering textbooks, lab kits, calculators, drafters, cycles, and hostel essentials across Kolkata.
           </p>
 
           {/* Interactive Search Bar */}
@@ -246,7 +298,7 @@ function App() {
         {activeTab === "needs" ? (
           <NeedsBoard
             needs={needs}
-            onOpenCreateNeed={() => setIsCreateNeedOpen(true)}
+            onOpenCreateNeed={handleOpenCreateNeed}
           />
         ) : (
           <>
@@ -280,7 +332,7 @@ function App() {
             <select
               id="sort-select"
               value={sortBy}
-              onChange={(e) => setSortBy(e.target.value)}
+              onChange={(e) => handleSortChange(e.target.value)}
               className="px-3 py-1.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-xs font-semibold text-gray-700 dark:text-gray-200 focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/10 cursor-pointer shadow-2xs hover:border-gray-300 dark:hover:border-gray-600 transition-all"
             >
               <option value="default">Featured</option>
@@ -296,7 +348,18 @@ function App() {
         </div>
 
         {/* Responsive Product Grid */}
-        {sortedProducts.length > 0 ? (
+        {loadingProducts ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+            {[...Array(8)].map((_, i) => (
+              <div key={i} className="animate-pulse bg-white dark:bg-gray-800/95 rounded-2xl border border-gray-200/80 dark:border-gray-700 overflow-hidden p-4 space-y-3 shadow-xs">
+                <div className="aspect-4/3 w-full bg-gray-200 dark:bg-gray-700 rounded-xl" />
+                <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded-md w-3/4" />
+                <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded-md w-1/2" />
+                <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded-md w-1/3 mt-4" />
+              </div>
+            ))}
+          </div>
+        ) : sortedProducts.length > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
             {sortedProducts.map((product) => (
               <ProductCard
@@ -304,6 +367,7 @@ function App() {
                 product={product}
                 onSelect={setSelectedProduct}
                 onSelectSeller={setSelectedSeller}
+                buyerCoords={buyerCoords}
               />
             ))}
           </div>
@@ -329,6 +393,7 @@ function App() {
         product={selectedProduct}
         onClose={() => setSelectedProduct(null)}
         onViewSeller={setSelectedSeller}
+        onOpenAuth={() => setIsAuthModalOpen(true)}
       />
 
       {/* Seller Profile & Reliability Score Modal */}
@@ -343,6 +408,7 @@ function App() {
         isOpen={isDashboardOpen}
         onClose={() => setIsDashboardOpen(false)}
         currentUser={currentUser}
+        onUpdateUser={setCurrentUser}
         products={products}
         onOpenCreateListing={() => setIsCreateModalOpen(true)}
         onDeleteListing={handleDeleteListing}
@@ -360,6 +426,7 @@ function App() {
         isOpen={isCreateNeedOpen}
         onClose={() => setIsCreateNeedOpen(false)}
         onCreateNeed={handleCreateNeed}
+        currentUser={currentUser}
       />
 
       {/* Sign In / Sign Up Auth Modal Dialog */}
@@ -370,7 +437,13 @@ function App() {
       />
 
       {/* Page Footer */}
-      <Footer />
+      <Footer onOpenAdmin={() => setIsAdminOpen(true)} />
+
+      {/* Lab Admin / Evaluation Stats Modal */}
+      <AdminModal
+        isOpen={isAdminOpen}
+        onClose={() => setIsAdminOpen(false)}
+      />
 
       {/* Floating Help & Safety Support Button */}
       <FloatingContact />

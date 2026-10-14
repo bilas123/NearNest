@@ -38,9 +38,25 @@ const productSchema = new mongoose.Schema({
     type: String,
     default: "",
   },
+  coordinates: {
+    type: [Number], // [longitude, latitude]
+    default: undefined,
+  },
   image: {
     type: String,
     default: "",
+  },
+  sellerRating: {
+    type: Number,
+    default: 5.0,
+  },
+  sellerTrades: {
+    type: Number,
+    default: 12,
+  },
+  reliabilityScore: {
+    type: String,
+    default: "98%",
   },
   status: {
     type: String,

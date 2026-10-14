@@ -1,8 +1,9 @@
 import React from "react";
 import { Link } from "react-router-dom";
 import { MapPin, ArrowUpRight } from "lucide-react";
+import { getDistanceInKm, formatDistance } from "../utils/location";
 
-export function ProductCard({ product, onSelect, onSelectSeller }) {
+export function ProductCard({ product, onSelect, onSelectSeller, buyerCoords }) {
   // Format price display based on listing type
   const renderPrice = () => {
     if (product.listingType === "donate") {
@@ -17,6 +18,17 @@ export function ProductCard({ product, onSelect, onSelectSeller }) {
       );
     }
     return <span className="font-bold text-gray-900 dark:text-white">₹{product.price}</span>;
+  };
+
+  // Dynamic distance calculation using Haversine formula
+  const renderDistance = () => {
+    if (buyerCoords && product.coordinates?.length === 2) {
+      const [lon, lat] = product.coordinates;
+      const km = getDistanceInKm(buyerCoords.latitude, buyerCoords.longitude, lat, lon);
+      const text = formatDistance(km);
+      if (text) return text;
+    }
+    return product.distance || "Nearby";
   };
 
   // Color badge for listing type (Sell, Rent, Donate)
@@ -72,7 +84,7 @@ export function ProductCard({ product, onSelect, onSelectSeller }) {
           </span>
           <div className="flex items-center space-x-1 text-emerald-600 dark:text-emerald-400 font-medium">
             <MapPin className="w-3.5 h-3.5" />
-            <span>{product.distance}</span>
+            <span>{renderDistance()}</span>
           </div>
         </div>
 

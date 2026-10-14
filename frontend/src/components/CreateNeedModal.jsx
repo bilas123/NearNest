@@ -1,43 +1,82 @@
 import React, { useState } from "react";
 import { X, Send } from "lucide-react";
 
-export function CreateNeedModal({ isOpen, onClose, onCreateNeed }) {
+export function CreateNeedModal({ isOpen, onClose, onCreateNeed, currentUser }) {
   const [formData, setFormData] = useState({
     title: "",
     description: "",
     budget: "",
     category: "Electronics",
-    location: "Greenwood Heights",
+    location: "Campus / Nearby",
   });
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!formData.title.trim()) return;
 
-    const newNeed = {
-      _id: `need-${Date.now()}`,
-      title: formData.title.trim(),
-      description: formData.description.trim() || "Urgent neighborhood requirement.",
-      budget: formData.budget.trim() ? `₹${formData.budget}` : "Flexible / Free",
-      category: formData.category,
-      distance: "0.1 km away",
-      location: formData.location.trim() || "Nearby Area",
-      requesterName: "You (Current User)",
-      postedTime: "Just now",
-    };
+    setSubmitting(true);
+    setError("");
 
-    onCreateNeed(newNeed);
-    onClose();
+    const token = localStorage.getItem("token");
+    const budgetVal = formData.budget.trim()
+      ? (formData.budget.startsWith("₹") ? formData.budget.trim() : `₹${formData.budget.trim()}`)
+      : "Flexible / Free";
 
-    setFormData({
-      title: "",
-      description: "",
-      budget: "",
-      category: "Electronics",
-      location: "Greenwood Heights",
-    });
+    try {
+      if (token) {
+        const res = await fetch("/api/needs", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            title: formData.title.trim(),
+            description: formData.description.trim() || "Urgent neighborhood requirement.",
+            budget: budgetVal,
+            category: formData.category,
+            location: formData.location.trim() || "Campus / Nearby",
+          }),
+        });
+
+        if (!res.ok) {
+          const errData = await res.json();
+          throw new Error(errData.message || "Failed to broadcast request");
+        }
+
+        const created = await res.json();
+        onCreateNeed(created);
+      } else {
+        onCreateNeed({
+          _id: `need-${Date.now()}`,
+          title: formData.title.trim(),
+          description: formData.description.trim() || "Urgent neighborhood requirement.",
+          budget: budgetVal,
+          category: formData.category,
+          distance: "0.1 km away",
+          location: formData.location.trim() || "Campus / Nearby",
+          requesterName: currentUser?.name || "Community Member",
+          postedTime: "Just now",
+        });
+      }
+
+      onClose();
+      setFormData({
+        title: "",
+        description: "",
+        budget: "",
+        category: "Electronics",
+        location: "Campus / Nearby",
+      });
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -57,6 +96,12 @@ export function CreateNeedModal({ isOpen, onClose, onCreateNeed }) {
             <X className="w-5 h-5" />
           </button>
         </div>
+
+        {error && (
+          <div className="p-3 bg-red-50 text-red-700 text-xs rounded-xl border border-red-200">
+            {error}
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-3.5 text-xs">
           <div>
@@ -119,10 +164,11 @@ export function CreateNeedModal({ isOpen, onClose, onCreateNeed }) {
             </button>
             <button
               type="submit"
-              className="inline-flex items-center space-x-1.5 px-5 py-2.5 bg-[#FFB703] text-gray-900 font-bold rounded-full shadow-xs hover:bg-[#f0ac00] active:scale-95 transition-all"
+              disabled={submitting}
+              className="inline-flex items-center space-x-1.5 px-5 py-2.5 bg-[#FFB703] disabled:opacity-50 text-gray-900 font-bold rounded-full shadow-xs hover:bg-[#f0ac00] active:scale-95 transition-all cursor-pointer"
             >
               <Send className="w-3.5 h-3.5" />
-              <span>Broadcast Request</span>
+              <span>{submitting ? "Broadcasting..." : "Broadcast Request"}</span>
             </button>
           </div>
         </form>
