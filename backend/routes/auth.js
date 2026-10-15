@@ -24,12 +24,11 @@ router.post("/register", async (req, res) => {
     // Check if user already exists
     const existingUser = await User.findOne({ email });
     if (existingUser) {
-      // If they registered but never verified and OTP expired, let them re-register
-      if (!existingUser.isVerified && existingUser.otpExpires < Date.now()) {
-        await existingUser.deleteOne();
-      } else {
+      if (existingUser.isVerified) {
         return res.status(400).json({ message: "Email already registered" });
       }
+      // If unverified, remove previous unverified entry so a fresh OTP is generated
+      await existingUser.deleteOne();
     }
 
     // Hash the password
@@ -106,6 +105,44 @@ router.post("/verify-otp", async (req, res) => {
   }
 });
 
+// POST /api/auth/resend-otp
+router.post("/resend-otp", async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ message: "Email is required" });
+    }
+
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    if (user.isVerified) {
+      return res.status(400).json({ message: "Account already verified. Please log in." });
+    }
+
+    // Generate fresh OTP
+    const otp = generateOTP();
+    user.otp = otp;
+    user.otpExpires = new Date(Date.now() + 10 * 60 * 1000);
+    await user.save();
+
+    // Send email
+    await sendEmail(
+      email,
+      "NearNest — Verify your email",
+      `Hi ${user.name},\n\nYour new verification code is: ${otp}\n\nThis code expires in 10 minutes.\n\n— NearNest`
+    );
+
+    res.status(200).json({ message: "Fresh OTP sent to your email" });
+  } catch (error) {
+    console.error("Resend OTP error:", error.message);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
 // POST /api/auth/login
 router.post("/login", async (req, res) => {
   try {
@@ -120,13 +157,27 @@ router.post("/login", async (req, res) => {
       return res.status(400).json({ message: "Invalid Email" });
     }
 
-    if (!user.isVerified) {
-      return res.status(403).json({ message: "Please verify your email first" });
-    }
-
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
       return res.status(400).json({ message: "Invalid Password" });
+    }
+
+    // If account not verified yet, send fresh OTP to email and prompt them to enter it
+    if (!user.isVerified) {
+      const otp = generateOTP();
+      user.otp = otp;
+      user.otpExpires = new Date(Date.now() + 10 * 60 * 1000);
+      await user.save();
+
+      await sendEmail(
+        user.email,
+        "NearNest — Verify your email",
+        `Hi ${user.name},\n\nYour verification code is: ${otp}\n\nThis code expires in 10 minutes.\n\n— NearNest`
+      );
+
+      return res.status(403).json({
+        message: "Account not verified. A fresh OTP has been sent to your email.",
+      });
     }
 
     const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {

@@ -87,8 +87,12 @@ export function AuthModal({ isOpen, onClose, onAuthSuccess }) {
           password: formData.password,
         });
         if (!res.ok) {
-          // Unverified account — let them enter OTP
-          if (res.status === 403) { setError(data.message); setStep("otp"); return; }
+          // Unverified account — backend generated and emailed a fresh OTP
+          if (res.status === 403) {
+            setSuccessMsg(data.message || "A verification code has been sent to your email.");
+            setStep("otp");
+            return;
+          }
           throw new Error(data.message || "Login failed");
         }
         if (data.token) localStorage.setItem("token", data.token);
@@ -128,15 +132,14 @@ export function AuthModal({ isOpen, onClose, onAuthSuccess }) {
   // Resend OTP
   const handleResendOtp = async () => {
     setError("");
+    setSuccessMsg("");
     setLoading(true);
     try {
-      const { res, data } = await postAPI("/api/auth/register", {
-        name: formData.name.trim() || "User",
+      const { res, data } = await postAPI("/api/auth/resend-otp", {
         email: formData.email.trim().toLowerCase(),
-        password: formData.password || "TempPassword123!",
       });
       if (!res.ok) throw new Error(data.message || "Could not resend OTP");
-      setSuccessMsg("Fresh OTP sent to your email!");
+      setSuccessMsg(data.message || "Fresh OTP sent to your email!");
     } catch (err) {
       setError(err.message);
     } finally {
