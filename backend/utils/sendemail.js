@@ -1,57 +1,72 @@
 const nodemailer = require("nodemailer");
 
 const sendEmail = async (to, subject, text) => {
-  // Use real SMTP credentials from .env if available,
-  // otherwise fall back to Ethereal (fake test inbox)
-  let transporter;
+  // 1. If RESEND_API_KEY is provided in Render environment, use HTTPS port 443
+  // (Render never blocks HTTPS, so real emails can be delivered on Free Tier)
+  if (process.env.RESEND_API_KEY) {
+    try {
+      const res = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+        },
+        body: JSON.stringify({
+          from: "NearNest <onboarding@resend.dev>",
+          to: [to],
+          subject,
+          text,
+        }),
+      });
+      if (res.ok) {
+        console.log(`[EMAIL SUCCESS] Sent via Resend HTTPS to ${to}`);
+        return await res.json();
+      }
+    } catch (apiErr) {
+      console.warn("Resend API warning:", apiErr.message);
+    }
+  }
 
-  // if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
-  //   transporter = nodemailer.createTransport({
-  //     service: "gmail",
-  //     auth: {
-  //       user: process.env.EMAIL_USER,
-  //       pass: process.env.EMAIL_PASS,
-  //     },
-  //   });
-
+  // 2. If Gmail SMTP credentials exist, attempt Nodemailer with 4s timeout
   if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
-    transporter = nodemailer.createTransport({
-      host: "smtp.gmail.com",
-      port: 587,
-      secure: false,
-      auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS,
-      },
-      family: 4,
-    });
-  } else {
-    // Dev fallback — creates a temporary test account
-    const testAccount = await nodemailer.createTestAccount();
-    transporter = nodemailer.createTransport({
-      host: "smtp.ethereal.email",
-      port: 587,
-      auth: {
-        user: testAccount.user,
-        pass: testAccount.pass,
-      },
-    });
-    console.log("Using Ethereal test email (no real email sent)");
+    try {
+      const transporter = nodemailer.createTransport({
+        host: "smtp.gmail.com",
+        port: 587,
+        secure: false,
+        auth: {
+          user: process.env.EMAIL_USER,
+          pass: process.env.EMAIL_PASS,
+        },
+        connectionTimeout: 4000,
+        greetingTimeout: 4000,
+        socketTimeout: 4000,
+        family: 4,
+      });
+
+      const info = await transporter.sendMail({
+        from: process.env.EMAIL_USER,
+        to,
+        subject,
+        text,
+      });
+
+      console.log(`[EMAIL SUCCESS] Sent via Gmail SMTP to ${to}`);
+      return info;
+    } catch (smtpErr) {
+      console.warn(`[SMTP NOTICE] ${smtpErr.message}`);
+      console.warn("Render Free Tier blocks outbound SMTP ports (25, 465, 587). Logging code below.");
+    }
   }
 
-  const info = await transporter.sendMail({
-    from: process.env.EMAIL_USER || "nearnest@test.com",
-    to,
-    subject,
-    text,
-  });
+  // 3. Fallback: Log OTP to server logs so registration never hangs or crashes
+  console.log("-----------------------------------------");
+  console.log(`📬 [OTP BACKEND LOG]`);
+  console.log(`To: ${to}`);
+  console.log(`${text}`);
+  console.log("-----------------------------------------");
 
-  // In dev mode, log the preview URL so you can see the email
-  if (!process.env.EMAIL_USER) {
-    console.log("Preview URL:", nodemailer.getTestMessageUrl(info));
-  }
-
-  return info;
+  return { delivered: false, loggedToConsole: true };
 };
 
 module.exports = sendEmail;
