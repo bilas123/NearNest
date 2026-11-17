@@ -1,7 +1,38 @@
 const nodemailer = require("nodemailer");
 
 const sendEmail = async (to, subject, text) => {
-  // 1. Resend HTTPS API (Port 443 — NEVER blocked by Render or cloud hosts)
+  // 1. Brevo HTTPS API (300 free emails/day to ANY email address — NO custom domain required!)
+  if (process.env.BREVO_API_KEY) {
+    try {
+      const apiKey = process.env.BREVO_API_KEY.trim();
+      const senderEmail = (process.env.EMAIL_USER || "zerosworld61@gmail.com").trim();
+      const res = await fetch("https://api.brevo.com/v3/smtp/email", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "api-key": apiKey,
+        },
+        body: JSON.stringify({
+          sender: { name: "NearNest", email: senderEmail },
+          to: [{ email: to }],
+          subject,
+          textContent: text,
+        }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        console.log(`[BREVO SUCCESS] Real email delivered to ${to} (id: ${data.messageId || "ok"})`);
+        return { delivered: true, id: data.messageId };
+      } else {
+        console.error(`[BREVO REJECTED] Status ${res.status}:`, JSON.stringify(data));
+      }
+    } catch (apiErr) {
+      console.warn("Brevo API network warning:", apiErr.message);
+    }
+  }
+
+  // 2. Resend HTTPS API (Port 443)
   if (process.env.RESEND_API_KEY) {
     try {
       const apiKey = process.env.RESEND_API_KEY.trim();
@@ -20,23 +51,18 @@ const sendEmail = async (to, subject, text) => {
       });
 
       const data = await res.json().catch(() => ({}));
-
       if (res.ok) {
         console.log(`[RESEND SUCCESS] Email delivered via Resend to ${to} (id: ${data.id || "ok"})`);
         return { delivered: true, id: data.id };
       } else {
         console.error(`[RESEND REJECTED] Status ${res.status}:`, JSON.stringify(data));
-        // Important hint for Resend sandbox testing
-        if (res.status === 403 && data.message && data.message.includes("testing emails")) {
-          console.warn("⚠️ NOTICE: Resend free sandbox can only send to your own Resend sign-up email address!");
-        }
       }
     } catch (apiErr) {
       console.warn("Resend API network warning:", apiErr.message);
     }
   }
 
-  // 2. Gmail SMTP with 4s timeout (Works locally, but blocked on Render Free Tier)
+  // 3. Gmail SMTP with 4s timeout (Works locally, blocked on Render Free Tier)
   if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
     try {
       const cleanUser = process.env.EMAIL_USER.trim();
@@ -68,7 +94,7 @@ const sendEmail = async (to, subject, text) => {
     }
   }
 
-  // 3. Server console logging fallback
+  // 4. Server console logging fallback
   console.log("-----------------------------------------");
   console.log(`📬 [OTP CODE] For: ${to}`);
   console.log(`${text}`);
