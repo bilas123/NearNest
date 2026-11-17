@@ -8,6 +8,7 @@ const userRoutes = require("./routes/user");
 const needRoutes = require("./routes/need");
 const reviewRoutes = require("./routes/review");
 const adminRoutes = require("./routes/admin");
+const aiRoutes = require("./routes/ai");
 
 // Load environment variables from .env
 dotenv.config();
@@ -54,6 +55,9 @@ app.use("/api/reviews", reviewRoutes);
 
 // Admin / Evaluation routes
 app.use("/api/admin", adminRoutes);
+
+// AI Campus Assistant (NestBot)
+app.use("/api/ai", aiRoutes);
 
 // Connect to MongoDB, auto-seed if empty, then start server
 connectDB().then(async () => {

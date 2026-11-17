@@ -30,6 +30,7 @@ router.post("/", auth, async (req, res) => {
     if (product.listingType === "rent") totalPrice = product.price * (rentalDays || 1);
 
     const orderType = product.listingType === "sell" ? "buy" : product.listingType;
+    const pickupCode = Math.floor(1000 + Math.random() * 9000).toString();
 
     const order = await Order.create({
       buyer: req.user._id,
@@ -38,6 +39,7 @@ router.post("/", auth, async (req, res) => {
       orderType,
       rentalDays: product.listingType === "rent" ? (rentalDays || 1) : 0,
       totalPrice,
+      pickupCode,
     });
 
     res.status(201).json(order);
@@ -65,6 +67,7 @@ router.get("/my-orders", auth, async (req, res) => {
 router.get("/seller-requests", auth, async (req, res) => {
   try {
     const orders = await Order.find({ seller: req.user._id })
+      .select("-pickupCode")
       .populate("product", "title image price listingType location")
       .populate("buyer", "name email phone address")
       .sort({ createdAt: -1 });
@@ -78,7 +81,7 @@ router.get("/seller-requests", auth, async (req, res) => {
 // PUT /api/orders/:id/status — seller updates order status
 router.put("/:id/status", auth, async (req, res) => {
   try {
-    const { status } = req.body;
+    const { status, pickupCode } = req.body;
     const allowed = ["confirmed", "completed", "cancelled"];
     if (!allowed.includes(status)) return res.status(400).json({ message: "Invalid status" });
 
@@ -90,6 +93,15 @@ router.put("/:id/status", auth, async (req, res) => {
     if (!order) return res.status(404).json({ message: "Order not found" });
     if (order.seller.toString() !== req.user._id.toString()) {
       return res.status(403).json({ message: "Only the seller can update order status" });
+    }
+
+    // Handover security: verify buyer's 4-digit handshake code before completing
+    if (status === "completed" && order.pickupCode) {
+      if (!pickupCode || pickupCode.toString().trim() !== order.pickupCode) {
+        return res.status(400).json({
+          message: "Invalid pickup code. Ask the buyer for the 4-digit code shown on their screen.",
+        });
+      }
     }
 
     order.status = status;

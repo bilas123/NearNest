@@ -9,7 +9,7 @@ export function FloatingContact() {
   return (
     <>
       {/* Floating Button */}
-      <div className="fixed bottom-6 right-6 z-40">
+      <div className="fixed bottom-20 right-6 z-40">
         <button onClick={() => setIsOpen(!isOpen)}
           className="flex items-center space-x-2 px-4 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-full shadow-lg hover:scale-105 active:scale-95 transition-all cursor-pointer">
           <MessageCircleQuestion className="w-5 h-5" />

@@ -8,6 +8,7 @@ const orderSchema = new mongoose.Schema({
   rentalDays: { type: Number, default: 0 },
   totalPrice: { type: Number, default: 0 },
   status: { type: String, enum: ["pending", "confirmed", "completed", "cancelled"], default: "pending" },
+  pickupCode: { type: String },
 }, { timestamps: true });
 
 module.exports = mongoose.model("Order", orderSchema);

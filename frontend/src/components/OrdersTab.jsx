@@ -20,6 +20,7 @@ const formatDate = (dateStr) => {
 export function OrdersTab({ myOrders, sellerRequests, loading, onUpdateOrder }) {
   const [selectedOrderForReview, setSelectedOrderForReview] = useState(null);
   const [reviewedMap, setReviewedMap] = useState({});
+  const [pickupInput, setPickupInput] = useState({});
 
   // Fetch reviews submitted by this buyer to display rating badges
   useEffect(() => {
@@ -41,16 +42,20 @@ export function OrdersTab({ myOrders, sellerRequests, loading, onUpdateOrder }) 
       .catch(() => {});
   }, []);
 
-  // Seller accepts or declines an order
-  const handleAction = async (orderId, status) => {
+  // Seller accepts or declines an order (or verifies pickup code to complete)
+  const handleAction = async (orderId, status, code = "") => {
     try {
       const token = localStorage.getItem("token");
       const res = await fetch(`/api/orders/${orderId}/status`, {
         method: "PUT",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ status }),
+        body: JSON.stringify({ status, pickupCode: code }),
       });
-      if (!res.ok) return;
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.message || "Failed to update order");
+        return;
+      }
       onUpdateOrder(orderId, status);
     } catch {
       alert("Failed to update order");
@@ -94,7 +99,7 @@ export function OrdersTab({ myOrders, sellerRequests, loading, onUpdateOrder }) 
                 </div>
               )}
               {req.status === "confirmed" && (
-                <div className="space-y-1.5 pt-1">
+                <div className="space-y-2 pt-1">
                   <div className="p-2 bg-emerald-50 dark:bg-emerald-950/40 rounded-xl text-[11px] text-gray-700 dark:text-gray-200 flex justify-between items-center border border-emerald-200/60 dark:border-emerald-800/40">
                     <span>Buyer: <strong>{req.buyer?.phone || req.buyer?.email}</strong></span>
                     {req.buyer?.phone && (
@@ -103,13 +108,24 @@ export function OrdersTab({ myOrders, sellerRequests, loading, onUpdateOrder }) 
                       </a>
                     )}
                   </div>
-                  <button
-                    onClick={() => handleAction(req._id, "completed")}
-                    className="w-full py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl cursor-pointer flex items-center justify-center space-x-1.5 text-xs shadow-xs"
-                  >
-                    <Check className="w-3.5 h-3.5" />
-                    <span>Mark Handover Completed</span>
-                  </button>
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="text"
+                      maxLength={4}
+                      placeholder="4-digit code"
+                      value={pickupInput[req._id] || ""}
+                      onChange={(e) => setPickupInput({ ...pickupInput, [req._id]: e.target.value })}
+                      className="w-28 px-2 py-1.5 text-center text-xs font-mono font-bold border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                    />
+                    <button
+                      onClick={() => handleAction(req._id, "completed", pickupInput[req._id])}
+                      className="flex-1 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl cursor-pointer flex items-center justify-center space-x-1 text-xs shadow-xs"
+                    >
+                      <Check className="w-3.5 h-3.5" />
+                      <span>Verify & Complete</span>
+                    </button>
+                  </div>
+                  <p className="text-[10px] text-gray-400">Ask buyer for the 4-digit code shown on their order screen.</p>
                 </div>
               )}
             </div>
@@ -137,12 +153,26 @@ export function OrdersTab({ myOrders, sellerRequests, loading, onUpdateOrder }) 
             </div>
 
             {order.status === "confirmed" && (
-              <div className="p-2 bg-blue-50 dark:bg-blue-950/40 rounded-xl text-[11px] text-gray-700 dark:text-gray-200 flex justify-between items-center border border-blue-200/60 dark:border-blue-800/40">
-                <span>Meetup: <strong>{order.seller?.phone || order.seller?.email}</strong> ({order.seller?.address || "Campus"})</span>
-                {order.seller?.phone && (
-                  <a href={`https://wa.me/${order.seller.phone.replace(/[^0-9]/g, "")}`} target="_blank" rel="noreferrer" className="text-blue-700 dark:text-blue-400 font-bold hover:underline">
-                    WhatsApp ↗
-                  </a>
+              <div className="space-y-1.5">
+                <div className="p-2 bg-blue-50 dark:bg-blue-950/40 rounded-xl text-[11px] text-gray-700 dark:text-gray-200 flex justify-between items-center border border-blue-200/60 dark:border-blue-800/40">
+                  <span>Meetup: <strong>{order.seller?.phone || order.seller?.email}</strong> ({order.seller?.address || "Campus"})</span>
+                  {order.seller?.phone && (
+                    <a href={`https://wa.me/${order.seller.phone.replace(/[^0-9]/g, "")}`} target="_blank" rel="noreferrer" className="text-blue-700 dark:text-blue-400 font-bold hover:underline">
+                      WhatsApp ↗
+                    </a>
+                  )}
+                </div>
+
+                {order.pickupCode && (
+                  <div className="p-2 bg-amber-50 dark:bg-amber-950/40 rounded-xl border border-amber-200/60 dark:border-amber-800/40 flex items-center justify-between text-[11px]">
+                    <div>
+                      <span className="font-semibold text-amber-800 dark:text-amber-300">Pickup Handshake Code:</span>
+                      <span className="text-[10px] text-gray-500 block">Give this code to seller at meetup</span>
+                    </div>
+                    <span className="font-mono font-extrabold text-sm tracking-widest text-amber-700 dark:text-amber-300 bg-white dark:bg-gray-800 px-2 py-0.5 rounded-lg border border-amber-300 dark:border-amber-700">
+                      {order.pickupCode}
+                    </span>
+                  </div>
                 )}
               </div>
             )}
