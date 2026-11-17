@@ -1,15 +1,15 @@
 const nodemailer = require("nodemailer");
 
 const sendEmail = async (to, subject, text) => {
-  // 1. If RESEND_API_KEY is provided in Render environment, use HTTPS port 443
-  // (Render never blocks HTTPS, so real emails can be delivered on Free Tier)
+  // 1. Resend HTTPS API (Port 443 — NEVER blocked by Render or cloud hosts)
   if (process.env.RESEND_API_KEY) {
     try {
+      const apiKey = process.env.RESEND_API_KEY.trim();
       const res = await fetch("https://api.resend.com/emails", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+          Authorization: `Bearer ${apiKey}`,
         },
         body: JSON.stringify({
           from: "NearNest <onboarding@resend.dev>",
@@ -18,51 +18,59 @@ const sendEmail = async (to, subject, text) => {
           text,
         }),
       });
+
+      const data = await res.json().catch(() => ({}));
+
       if (res.ok) {
-        console.log(`[EMAIL SUCCESS] Sent via Resend HTTPS to ${to}`);
-        return await res.json();
+        console.log(`[RESEND SUCCESS] Email delivered via Resend to ${to} (id: ${data.id || "ok"})`);
+        return { delivered: true, id: data.id };
+      } else {
+        console.error(`[RESEND REJECTED] Status ${res.status}:`, JSON.stringify(data));
+        // Important hint for Resend sandbox testing
+        if (res.status === 403 && data.message && data.message.includes("testing emails")) {
+          console.warn("⚠️ NOTICE: Resend free sandbox can only send to your own Resend sign-up email address!");
+        }
       }
     } catch (apiErr) {
-      console.warn("Resend API warning:", apiErr.message);
+      console.warn("Resend API network warning:", apiErr.message);
     }
   }
 
-  // 2. If Gmail SMTP credentials exist, attempt Nodemailer with 4s timeout
+  // 2. Gmail SMTP with 4s timeout (Works locally, but blocked on Render Free Tier)
   if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
     try {
+      const cleanUser = process.env.EMAIL_USER.trim();
+      const cleanPass = process.env.EMAIL_PASS.replace(/\s+/g, "");
+
       const transporter = nodemailer.createTransport({
-        host: "smtp.gmail.com",
-        port: 587,
-        secure: false,
+        service: "gmail",
         auth: {
-          user: process.env.EMAIL_USER,
-          pass: process.env.EMAIL_PASS,
+          user: cleanUser,
+          pass: cleanPass,
         },
         connectionTimeout: 4000,
         greetingTimeout: 4000,
         socketTimeout: 4000,
-        family: 4,
       });
 
       const info = await transporter.sendMail({
-        from: process.env.EMAIL_USER,
+        from: cleanUser,
         to,
         subject,
         text,
       });
 
-      console.log(`[EMAIL SUCCESS] Sent via Gmail SMTP to ${to}`);
-      return info;
+      console.log(`[SMTP SUCCESS] Sent via Gmail SMTP to ${to}`);
+      return { delivered: true, info };
     } catch (smtpErr) {
       console.warn(`[SMTP NOTICE] ${smtpErr.message}`);
-      console.warn("Render Free Tier blocks outbound SMTP ports (25, 465, 587). Logging code below.");
+      console.warn("Notice: Render Free Tier blocks outbound SMTP (ports 25, 465, 587). Logging code below.");
     }
   }
 
-  // 3. Fallback: Log OTP to server logs so registration never hangs or crashes
+  // 3. Server console logging fallback
   console.log("-----------------------------------------");
-  console.log(`📬 [OTP BACKEND LOG]`);
-  console.log(`To: ${to}`);
+  console.log(`📬 [OTP CODE] For: ${to}`);
   console.log(`${text}`);
   console.log("-----------------------------------------");
 

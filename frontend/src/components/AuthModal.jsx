@@ -209,6 +209,7 @@ export function AuthModal({ isOpen, onClose, onAuthSuccess }) {
             <div className="p-3 bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-800/60 rounded-xl text-xs text-amber-900 dark:text-amber-200">
               Code sent to: <strong className="text-gray-900 dark:text-white">{form.email}</strong>
             </div>
+
             <div>
               <label className="block text-xs font-semibold text-gray-700 dark:text-gray-200 mb-1.5">6-Digit Verification Code</label>
               <input type="text" maxLength={6} required autoFocus value={otp}
