@@ -48,15 +48,15 @@ const productSchema = new mongoose.Schema({
   },
   sellerRating: {
     type: Number,
-    default: 5.0,
+    default: 0,
   },
   sellerTrades: {
     type: Number,
-    default: 12,
+    default: 0,
   },
   reliabilityScore: {
     type: String,
-    default: "98%",
+    default: "New Seller",
   },
   status: {
     type: String,

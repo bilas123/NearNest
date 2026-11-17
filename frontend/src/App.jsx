@@ -13,25 +13,31 @@ import { CreateNeedModal } from "./components/CreateNeedModal";
 import { SellerProfileModal } from "./components/SellerProfileModal";
 import { UserDashboardModal } from "./components/UserDashboardModal";
 import { FloatingContact } from "./components/FloatingContact";
+import { NestBot } from "./components/NestBot";
 import { AdminModal } from "./components/AdminModal";
 import { getCurrentCoordinates, getDistanceInKm } from "./utils/location";
 
-const CATEGORIES = [
-  "All",
-  "Textbooks",
-  "Electronics",
-  "Vehicles",
-  "Clothing",
-  "Hostel Needs",
-  "Rentals",
-  "Donations",
-];
+const CATEGORIES = ["All", "Textbooks", "Electronics", "Vehicles", "Clothing", "Hostel Needs", "Rentals", "Donations"];
+
+function SkeletonGrid() {
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+      {[...Array(8)].map((_, i) => (
+        <div key={i} className="animate-pulse bg-white dark:bg-gray-800/95 rounded-2xl border border-gray-200/80 dark:border-gray-700 p-4 space-y-3">
+          <div className="aspect-4/3 w-full bg-gray-200 dark:bg-gray-700 rounded-xl" />
+          <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded-md w-3/4" />
+          <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded-md w-1/2" />
+        </div>
+      ))}
+    </div>
+  );
+}
 
 function App() {
   const [products, setProducts] = useState([]);
   const [loadingProducts, setLoadingProducts] = useState(true);
   const [needs, setNeeds] = useState(mockNeeds);
-  const [activeTab, setActiveTab] = useState("marketplace"); // "marketplace" or "needs"
+  const [activeTab, setActiveTab] = useState("marketplace"); // "marketplace" | "needs"
   const [activeCategory, setActiveCategory] = useState("All");
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedProduct, setSelectedProduct] = useState(null);
@@ -44,42 +50,21 @@ function App() {
   const [isAdminOpen, setIsAdminOpen] = useState(false);
   const [sortBy, setSortBy] = useState("default");
   const [buyerCoords, setBuyerCoords] = useState(null);
-  const [isDarkMode, setIsDarkMode] = useState(() => {
-    return localStorage.getItem("nearnest_theme") === "dark";
-  });
+  const [isDarkMode, setIsDarkMode] = useState(() => localStorage.getItem("nearnest_theme") === "dark");
 
-  // Toggle Dark Mode
-  const handleToggleDarkMode = () => {
-    setIsDarkMode((prev) => {
-      const next = !prev;
-      localStorage.setItem("nearnest_theme", next ? "dark" : "light");
-      return next;
-    });
-  };
-
-  // Sync documentElement class for dark theme
+  // Sync theme
   useEffect(() => {
-    if (isDarkMode) {
-      document.documentElement.classList.add("dark");
-    } else {
-      document.documentElement.classList.remove("dark");
-    }
+    document.documentElement.classList.toggle("dark", isDarkMode);
+    localStorage.setItem("nearnest_theme", isDarkMode ? "dark" : "light");
   }, [isDarkMode]);
 
-  // Check existing session token on initial mount
+  // Check auth session
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (!token) return;
 
-    fetch("/api/auth/me", {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    })
-      .then((res) => {
-        if (!res.ok) throw new Error("Invalid or expired session");
-        return res.json();
-      })
+    fetch("/api/auth/me", { headers: { Authorization: `Bearer ${token}` } })
+      .then((res) => (res.ok ? res.json() : Promise.reject()))
       .then((data) => {
         if (data?.user) {
           setCurrentUser({
@@ -89,9 +74,9 @@ function App() {
             phone: data.user.phone || "",
             address: data.user.address || "",
             location: data.user.address || "College Campus / Local Area",
-            reliabilityScore: "100%",
-            sellerRating: 5.0,
-            sellerTrades: 0,
+            reliabilityScore: data.user.reliabilityScore || "New Seller",
+            sellerRating: data.user.sellerRating || 0,
+            sellerTrades: data.user.sellerTrades || 0,
           });
         }
       })
@@ -101,39 +86,21 @@ function App() {
       });
   }, []);
 
-  // Fetch real products from backend on page load
+  // Fetch catalog products
   useEffect(() => {
-    async function fetchProducts() {
-      setLoadingProducts(true);
-      try {
-        const res = await fetch("/api/products");
-        if (!res.ok) throw new Error("Failed to fetch");
-        const data = await res.json();
-        if (Array.isArray(data)) setProducts(data);
-      } catch (err) {
-        console.error("Could not fetch products from server:", err.message);
-      } finally {
-        setLoadingProducts(false);
-      }
-    }
-    fetchProducts();
+    fetch("/api/products")
+      .then((r) => (r.ok ? r.json() : []))
+      .then((data) => Array.isArray(data) && setProducts(data))
+      .catch((e) => console.error("Product load error:", e.message))
+      .finally(() => setLoadingProducts(false));
   }, []);
 
-  // Fetch live community requests from backend
+  // Fetch community needs
   useEffect(() => {
-    async function fetchNeeds() {
-      try {
-        const res = await fetch("/api/needs");
-        if (!res.ok) return;
-        const data = await res.json();
-        if (Array.isArray(data) && data.length > 0) {
-          setNeeds(data);
-        }
-      } catch (err) {
-        console.warn("Could not fetch needs from server:", err.message);
-      }
-    }
-    fetchNeeds();
+    fetch("/api/needs")
+      .then((r) => (r.ok ? r.json() : []))
+      .then((data) => Array.isArray(data) && data.length > 0 && setNeeds(data))
+      .catch(() => { });
   }, []);
 
   const handleSignOut = () => {
@@ -141,61 +108,38 @@ function App() {
     setCurrentUser(null);
   };
 
-  // Combined search and category filtering over the active products list
-  const filteredProducts = products.filter((product) => {
-    // 1. Category / Listing mode check
-    const matchesCategory =
+  // Filter products by category and search keyword
+  const filteredProducts = products.filter((p) => {
+    const matchCat =
       activeCategory === "All" ||
-      (activeCategory === "Rentals" && product.listingType === "rent") ||
-      (activeCategory === "Donations" && product.listingType === "donate") ||
-      product.category.toLowerCase() === activeCategory.toLowerCase();
+      (activeCategory === "Rentals" && p.listingType === "rent") ||
+      (activeCategory === "Donations" && p.listingType === "donate") ||
+      p.category.toLowerCase() === activeCategory.toLowerCase();
 
-    // 2. Keyword search check (title, description, or category)
-    const query = searchTerm.toLowerCase().trim();
-    const matchesSearch =
-      query === "" ||
-      product.title.toLowerCase().includes(query) ||
-      product.description.toLowerCase().includes(query) ||
-      product.category.toLowerCase().includes(query);
+    const q = searchTerm.toLowerCase().trim();
+    const matchSearch = !q || p.title.toLowerCase().includes(q) || p.description.toLowerCase().includes(q) || p.category.toLowerCase().includes(q);
 
-    return matchesCategory && matchesSearch;
+    return matchCat && matchSearch;
   });
 
-  // Sort products by distance, reliability, or price
+  // Sort products
   const sortedProducts = [...filteredProducts].sort((a, b) => {
     if (sortBy === "distance") {
-      const getDist = (item) => {
-        if (buyerCoords && item.coordinates?.length === 2) {
-          return getDistanceInKm(buyerCoords.latitude, buyerCoords.longitude, item.coordinates[1], item.coordinates[0]) ?? 999;
-        }
-        return parseFloat(item.distance) || 999;
-      };
+      const getDist = (item) => (buyerCoords && item.coordinates?.length === 2)
+        ? (getDistanceInKm(buyerCoords.latitude, buyerCoords.longitude, item.coordinates[1], item.coordinates[0]) ?? 999)
+        : (parseFloat(item.distance) || 999);
       return getDist(a) - getDist(b);
     }
-    if (sortBy === "reliability") {
-      const scoreA = parseFloat(a.reliabilityScore) || 0;
-      const scoreB = parseFloat(b.reliabilityScore) || 0;
-      return scoreB - scoreA;
-    }
-    if (sortBy === "price-low") {
-      return a.price - b.price;
-    }
-    if (sortBy === "price-high") {
-      return b.price - a.price;
-    }
+    if (sortBy === "reliability") return (parseFloat(b.reliabilityScore) || 0) - (parseFloat(a.reliabilityScore) || 0);
+    if (sortBy === "price-low") return a.price - b.price;
+    if (sortBy === "price-high") return b.price - a.price;
     return 0;
   });
 
-  // Handle Sort selection (acquires GPS when selecting Nearest First)
   const handleSortChange = async (val) => {
     setSortBy(val);
     if (val === "distance" && !buyerCoords) {
-      try {
-        const coords = await getCurrentCoordinates();
-        setBuyerCoords(coords);
-      } catch {
-        // Fall back gracefully
-      }
+      try { setBuyerCoords(await getCurrentCoordinates()); } catch { }
     }
   };
 
@@ -203,26 +147,6 @@ function App() {
     setActiveCategory("All");
     setSearchTerm("");
     setSortBy("default");
-  };
-
-  const handleCreateListing = (newProduct) => {
-    setProducts([newProduct, ...products]);
-  };
-
-  const handleDeleteListing = (id) => {
-    setProducts(products.filter((p) => p._id !== id));
-  };
-
-  const handleCreateNeed = (newNeed) => {
-    setNeeds((prev) => [newNeed, ...prev]);
-  };
-
-  const handleOpenCreateNeed = () => {
-    if (!currentUser) {
-      setIsAuthModalOpen(true);
-      return;
-    }
-    setIsCreateNeedOpen(true);
   };
 
   const handleNavSelect = (item) => {
@@ -235,11 +159,7 @@ function App() {
   };
 
   return (
-    <div
-      className={`min-h-screen transition-colors duration-200 ${
-        isDarkMode ? "bg-gray-900 text-gray-100" : "bg-gray-50/50 text-gray-900"
-      }`}
-    >
+    <div className={`min-h-screen transition-colors duration-200 ${isDarkMode ? "bg-gray-900 text-gray-100" : "bg-gray-50/50 text-gray-900"}`}>
       <Navbar
         onOpenCreateListing={() => setIsCreateModalOpen(true)}
         currentUser={currentUser}
@@ -249,7 +169,7 @@ function App() {
         onOpenDashboard={() => setIsDashboardOpen(true)}
         onOpenAdmin={() => setIsAdminOpen(true)}
         isDarkMode={isDarkMode}
-        onToggleDarkMode={handleToggleDarkMode}
+        onToggleDarkMode={() => setIsDarkMode((prev) => !prev)}
       />
 
       <main className="max-w-6xl mx-auto px-4 py-8">
@@ -261,34 +181,23 @@ function App() {
           <p className="text-gray-600 dark:text-gray-300 max-w-xl mx-auto text-sm sm:text-base mb-6">
             Buy, rent, and donate B.Tech engineering textbooks, lab kits, calculators, drafters, cycles, and hostel essentials across Kolkata.
           </p>
-
-          {/* Interactive Search Bar */}
-          <SearchBar
-            searchTerm={searchTerm}
-            onSearchChange={setSearchTerm}
-          />
+          <SearchBar searchTerm={searchTerm} onSearchChange={setSearchTerm} />
         </section>
 
-        {/* Marketplace vs I Need This View Switcher */}
+        {/* View Switcher */}
         <div className="flex justify-center mb-6">
           <div className="inline-flex p-1 bg-gray-200/80 dark:bg-gray-800 rounded-2xl border border-transparent dark:border-gray-700">
             <button
               onClick={() => setActiveTab("marketplace")}
-              className={`px-5 py-2 text-xs sm:text-sm font-bold rounded-xl transition-all cursor-pointer ${
-                activeTab === "marketplace"
-                  ? "bg-white text-gray-900 shadow-xs dark:bg-gray-700 dark:text-white"
-                  : "text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white"
-              }`}
+              className={`px-5 py-2 text-xs sm:text-sm font-bold rounded-xl transition-all cursor-pointer ${activeTab === "marketplace" ? "bg-white text-gray-900 shadow-xs dark:bg-gray-700 dark:text-white" : "text-gray-600 dark:text-gray-300"
+                }`}
             >
               Browse Items ({products.length})
             </button>
             <button
               onClick={() => setActiveTab("needs")}
-              className={`px-5 py-2 text-xs sm:text-sm font-bold rounded-xl transition-all cursor-pointer ${
-                activeTab === "needs"
-                  ? "bg-[#FFB703] text-gray-900 shadow-xs"
-                  : "text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white"
-              }`}
+              className={`px-5 py-2 text-xs sm:text-sm font-bold rounded-xl transition-all cursor-pointer ${activeTab === "needs" ? "bg-[#FFB703] text-gray-900 shadow-xs" : "text-gray-600 dark:text-gray-300"
+                }`}
             >
               I Need This ({needs.length})
             </button>
@@ -298,97 +207,80 @@ function App() {
         {activeTab === "needs" ? (
           <NeedsBoard
             needs={needs}
-            onOpenCreateNeed={handleOpenCreateNeed}
+            onOpenCreateNeed={() => {
+              if (!currentUser) return setIsAuthModalOpen(true);
+              setIsCreateNeedOpen(true);
+            }}
           />
         ) : (
           <>
-            {/* Filter Pills Bar */}
+            {/* Filter Pills */}
             <div className="mb-6">
-              <CategoryFilter
-                categories={CATEGORIES}
-                activeCategory={activeCategory}
-                onSelectCategory={setActiveCategory}
-              />
+              <CategoryFilter categories={CATEGORIES} activeCategory={activeCategory} onSelectCategory={setActiveCategory} />
             </div>
 
-        {/* Section Header with Sort Controls */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
-          <div>
-            <h2 className="text-xl font-bold text-gray-900 dark:text-white">
-              {activeCategory === "All" ? "Featured Listings" : `${activeCategory} Listings`}
-            </h2>
-            <p className="text-xs text-gray-500 dark:text-gray-400">
-              {searchTerm
-                ? `Showing results matching "${searchTerm}"`
-                : "Items available in your immediate neighborhood"}
-            </p>
-          </div>
-
-          {/* Sort Dropdown & Items Count */}
-          <div className="flex items-center space-x-2.5 self-start sm:self-auto">
-            <label htmlFor="sort-select" className="text-xs font-medium text-gray-500 dark:text-gray-400 hidden sm:inline">
-              Sort:
-            </label>
-            <select
-              id="sort-select"
-              value={sortBy}
-              onChange={(e) => handleSortChange(e.target.value)}
-              className="px-3 py-1.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-xs font-semibold text-gray-700 dark:text-gray-200 focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/10 cursor-pointer shadow-2xs hover:border-gray-300 dark:hover:border-gray-600 transition-all"
-            >
-              <option value="default">Featured</option>
-              <option value="distance">📍 Nearest First</option>
-              <option value="reliability">⭐ Highest Reliability</option>
-              <option value="price-low">₹ Price: Low to High</option>
-              <option value="price-high">₹ Price: High to Low</option>
-            </select>
-            <span className="text-xs font-medium text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/60 px-2.5 py-1.5 rounded-xl border border-amber-200 dark:border-amber-800/60">
-              {sortedProducts.length} items
-            </span>
-          </div>
-        </div>
-
-        {/* Responsive Product Grid */}
-        {loadingProducts ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-            {[...Array(8)].map((_, i) => (
-              <div key={i} className="animate-pulse bg-white dark:bg-gray-800/95 rounded-2xl border border-gray-200/80 dark:border-gray-700 overflow-hidden p-4 space-y-3 shadow-xs">
-                <div className="aspect-4/3 w-full bg-gray-200 dark:bg-gray-700 rounded-xl" />
-                <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded-md w-3/4" />
-                <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded-md w-1/2" />
-                <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded-md w-1/3 mt-4" />
+            {/* Header with Sort Controls */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
+              <div>
+                <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+                  {activeCategory === "All" ? "Featured Listings" : `${activeCategory} Listings`}
+                </h2>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  {searchTerm ? `Showing results matching "${searchTerm}"` : "Items available in your immediate neighborhood"}
+                </p>
               </div>
-            ))}
-          </div>
-        ) : sortedProducts.length > 0 ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-            {sortedProducts.map((product) => (
-              <ProductCard
-                key={product._id}
-                product={product}
-                onSelect={setSelectedProduct}
-                onSelectSeller={setSelectedSeller}
-                buyerCoords={buyerCoords}
-              />
-            ))}
-          </div>
-        ) : (
-          <div className="text-center py-16 bg-white dark:bg-gray-800/90 rounded-2xl border border-gray-200/80 dark:border-gray-700 p-8 shadow-xs">
-            <p className="text-gray-500 dark:text-gray-300 text-sm">
-              No items found matching your filters.
-            </p>
-            <button
-              onClick={handleResetFilters}
-              className="mt-3 px-4 py-1.5 text-xs font-medium text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/60 rounded-full hover:bg-amber-100 dark:hover:bg-amber-900/60 hover:scale-105 active:scale-95 transition-all cursor-pointer border border-amber-200 dark:border-amber-800/60"
-            >
-              Clear All Filters
-            </button>
-          </div>
+
+              <div className="flex items-center space-x-2.5 self-start sm:self-auto">
+                <label htmlFor="sort-select" className="text-xs font-medium text-gray-500 dark:text-gray-400 hidden sm:inline">Sort:</label>
+                <select
+                  id="sort-select"
+                  value={sortBy}
+                  onChange={(e) => handleSortChange(e.target.value)}
+                  className="px-3 py-1.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-xs font-semibold text-gray-700 dark:text-gray-200 cursor-pointer shadow-2xs"
+                >
+                  <option value="default">Featured</option>
+                  <option value="distance">📍 Nearest First</option>
+                  <option value="reliability">⭐ Highest Reliability</option>
+                  <option value="price-low">₹ Price: Low to High</option>
+                  <option value="price-high">₹ Price: High to Low</option>
+                </select>
+                <span className="text-xs font-medium text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/60 px-2.5 py-1.5 rounded-xl border border-amber-200 dark:border-amber-800/60">
+                  {sortedProducts.length} items
+                </span>
+              </div>
+            </div>
+
+            {/* Product Grid */}
+            {loadingProducts ? (
+              <SkeletonGrid />
+            ) : sortedProducts.length > 0 ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                {sortedProducts.map((product) => (
+                  <ProductCard
+                    key={product._id}
+                    product={product}
+                    onSelect={setSelectedProduct}
+                    onSelectSeller={setSelectedSeller}
+                    buyerCoords={buyerCoords}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-16 bg-white dark:bg-gray-800/90 rounded-2xl border border-gray-200/80 dark:border-gray-700 p-8 shadow-xs">
+                <p className="text-gray-500 dark:text-gray-300 text-sm">No items found matching your filters.</p>
+                <button
+                  onClick={handleResetFilters}
+                  className="mt-3 px-4 py-1.5 text-xs font-medium text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/60 rounded-full hover:bg-amber-100 cursor-pointer border border-amber-200"
+                >
+                  Clear All Filters
+                </button>
+              </div>
+            )}
+          </>
         )}
-        </>
-      )}
       </main>
 
-      {/* Product Details Modal Dialog */}
+      {/* Modals & Drawers */}
       <ProductDetailsModal
         product={selectedProduct}
         onClose={() => setSelectedProduct(null)}
@@ -396,14 +288,12 @@ function App() {
         onOpenAuth={() => setIsAuthModalOpen(true)}
       />
 
-      {/* Seller Profile & Reliability Score Modal */}
       <SellerProfileModal
         seller={selectedSeller}
-        isOpen={!!selectedSeller}
+        isOpen={Boolean(selectedSeller)}
         onClose={() => setSelectedSeller(null)}
       />
 
-      {/* User & Seller Profile Dashboard Modal */}
       <UserDashboardModal
         isOpen={isDashboardOpen}
         onClose={() => setIsDashboardOpen(false)}
@@ -411,45 +301,34 @@ function App() {
         onUpdateUser={setCurrentUser}
         products={products}
         onOpenCreateListing={() => setIsCreateModalOpen(true)}
-        onDeleteListing={handleDeleteListing}
+        onDeleteListing={(id) => setProducts((prev) => prev.filter((p) => p._id !== id))}
       />
 
-      {/* Create Listing Modal Dialog */}
       <CreateListingModal
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
-        onCreateListing={handleCreateListing}
+        onCreateListing={(newP) => setProducts((prev) => [newP, ...prev])}
       />
 
-      {/* Broadcast Need Modal Dialog */}
       <CreateNeedModal
         isOpen={isCreateNeedOpen}
         onClose={() => setIsCreateNeedOpen(false)}
-        onCreateNeed={handleCreateNeed}
+        onCreateNeed={(newNeed) => setNeeds((prev) => [newNeed, ...prev])}
         currentUser={currentUser}
       />
 
-      {/* Sign In / Sign Up Auth Modal Dialog */}
       <AuthModal
         isOpen={isAuthModalOpen}
         onClose={() => setIsAuthModalOpen(false)}
         onAuthSuccess={(user) => setCurrentUser(user)}
       />
 
-      {/* Page Footer */}
       <Footer onOpenAdmin={() => setIsAdminOpen(true)} />
-
-      {/* Lab Admin / Evaluation Stats Modal */}
-      <AdminModal
-        isOpen={isAdminOpen}
-        onClose={() => setIsAdminOpen(false)}
-      />
-
-      {/* Floating Help & Safety Support Button */}
+      <AdminModal isOpen={isAdminOpen} onClose={() => setIsAdminOpen(false)} />
       <FloatingContact />
+      <NestBot />
     </div>
   );
 }
 
 export default App;
-

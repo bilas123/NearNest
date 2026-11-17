@@ -97,26 +97,32 @@ export function ProductCard({ product, onSelect, onSelectSeller, buyerCoords }) 
         <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 mb-1.5">{product.location}</p>
 
         {/* Seller Reliability Badge (Clickable) */}
-        {product.reliabilityScore && (
-          <div
-            onClick={(e) => {
-              if (onSelectSeller) {
-                e.stopPropagation();
-                onSelectSeller(product);
-              }
-            }}
-            className="inline-flex items-center space-x-1.5 text-[11px] mb-3 p-1 -ml-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700/60 transition-colors cursor-pointer w-fit"
-            title="Click to view seller reliability score"
-          >
-            <span className="flex items-center text-amber-500 font-bold">
-              ★ {product.sellerRating || "5.0"}
+        <div
+          onClick={(e) => {
+            if (onSelectSeller) {
+              e.stopPropagation();
+              onSelectSeller(product);
+            }
+          }}
+          className="inline-flex items-center space-x-1.5 text-[11px] mb-3 p-1 -ml-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700/60 transition-colors cursor-pointer w-fit"
+          title="Click to view seller reliability score"
+        >
+          {product.sellerTrades > 0 ? (
+            <>
+              <span className="flex items-center text-amber-500 font-bold">
+                ★ {product.sellerRating || "5.0"}
+              </span>
+              <span className="text-gray-300 dark:text-gray-600">•</span>
+              <span className="text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 px-1.5 py-0.5 rounded text-[10px] font-semibold border border-emerald-200/60 dark:border-emerald-800/60">
+                {product.reliabilityScore || "100%"} ({product.sellerTrades} trades)
+              </span>
+            </>
+          ) : (
+            <span className="text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700/60 px-2 py-0.5 rounded text-[10px] font-semibold border border-gray-200 dark:border-gray-600">
+              New Seller • No trades yet
             </span>
-            <span className="text-gray-300 dark:text-gray-600">•</span>
-            <span className="text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 px-1.5 py-0.5 rounded text-[10px] font-semibold border border-emerald-200/60 dark:border-emerald-800/60">
-              {product.reliabilityScore} Reliability
-            </span>
-          </div>
-        )}
+          )}
+        </div>
 
         {/* Bottom Row: Price & Action */}
         <div className="mt-auto pt-3 border-t border-gray-100 dark:border-gray-700 flex items-center justify-between">

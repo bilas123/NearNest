@@ -195,9 +195,29 @@ router.post("/login", async (req, res) => {
   }
 });
 
-// GET /api/auth/me — get current logged-in user (protected)
-router.get("/me", auth, (req, res) => {
-  res.json({ user: req.user });
+// GET /api/auth/me — get current logged-in user with dynamic reputation (protected)
+router.get("/me", auth, async (req, res) => {
+  try {
+    const Order = require("../models/order");
+    const Review = require("../models/review");
+
+    const sellerTrades = await Order.countDocuments({ seller: req.user._id, status: "completed" });
+    const reviews = await Review.find({ seller: req.user._id });
+    const sellerRating = reviews.length
+      ? Number((reviews.reduce((acc, r) => acc + r.rating, 0) / reviews.length).toFixed(1))
+      : 0;
+
+    res.json({
+      user: {
+        ...req.user.toObject(),
+        sellerTrades,
+        sellerRating,
+        reliabilityScore: sellerTrades > 0 ? "100%" : "New Seller",
+      },
+    });
+  } catch {
+    res.json({ user: req.user });
+  }
 });
 
 module.exports = router;

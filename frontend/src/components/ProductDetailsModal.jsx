@@ -118,7 +118,13 @@ export function ProductDetailsModal({ product, onClose, onViewSeller, onOpenAuth
                 <div className="w-9 h-9 rounded-full bg-emerald-600 text-white font-bold flex items-center justify-center text-xs"><User className="w-4 h-4" /></div>
                 <div>
                   <p className="text-xs font-bold text-gray-900 dark:text-white">{sellerName}</p>
-                  <p className="text-[10px] text-gray-400">★ {product.sellerRating || "5.0"} • {product.sellerTrades || 0} trades</p>
+                  <p className="text-[10px] text-gray-400">
+                    {product.sellerTrades > 0 ? (
+                      `★ ${product.sellerRating || "5.0"} • ${product.sellerTrades} trades`
+                    ) : (
+                      <span className="text-emerald-600 dark:text-emerald-400 font-medium">New Seller • No trades yet</span>
+                    )}
+                  </p>
                 </div>
               </div>
               <span className="text-xs text-emerald-600 font-semibold">View Profile →</span>

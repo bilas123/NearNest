@@ -62,6 +62,17 @@ router.post("/", auth, async (req, res) => {
       return res.status(400).json({ message: "Title, description, listing type, and category are required" });
     }
 
+    const Order = require("../models/order");
+    const Review = require("../models/review");
+
+    // Dynamic seller trade reputation
+    const sellerTrades = await Order.countDocuments({ seller: req.user._id, status: "completed" });
+    const reviews = await Review.find({ seller: req.user._id });
+    const sellerRating = reviews.length
+      ? Number((reviews.reduce((acc, r) => acc + r.rating, 0) / reviews.length).toFixed(1))
+      : 0;
+    const reliabilityScore = sellerTrades > 0 ? "100%" : "New Seller";
+
     const product = await Product.create({
       seller: req.user._id,
       title,
@@ -73,6 +84,9 @@ router.post("/", auth, async (req, res) => {
       location,
       coordinates: Array.isArray(coordinates) && coordinates.length === 2 ? coordinates : undefined,
       image,
+      sellerTrades,
+      sellerRating,
+      reliabilityScore,
     });
 
     res.status(201).json(product);
