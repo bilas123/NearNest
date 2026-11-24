@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { X, MapPin, User, CheckCircle2, Compass } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { X, MapPin, User, CheckCircle2, Compass, ChevronLeft, ChevronRight } from "lucide-react";
 import { LocationPickerModal } from "./LocationPickerModal";
 
 export function ProductDetailsModal({ product, onClose, onViewSeller, onOpenAuth }) {
@@ -10,6 +10,13 @@ export function ProductDetailsModal({ product, onClose, onViewSeller, onOpenAuth
   const [hasLocation, setHasLocation] = useState(false);
   const [isMapOpen, setIsMapOpen] = useState(false);
   const [coordsLabel, setCoordsLabel] = useState("");
+  const [activeImgIndex, setActiveImgIndex] = useState(0);
+
+  useEffect(() => {
+    setActiveImgIndex(0);
+    setIsRequested(false);
+    setError("");
+  }, [product?._id]);
 
   if (!product) return null;
 
@@ -49,6 +56,20 @@ export function ProductDetailsModal({ product, onClose, onViewSeller, onOpenAuth
     return `₹${product.price}`;
   };
 
+  const images = (Array.isArray(product.images) && product.images.length > 0)
+    ? product.images
+    : (product.image ? [product.image] : ["https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=600"]);
+
+  const prevImage = (e) => {
+    e.stopPropagation();
+    setActiveImgIndex((prev) => (prev > 0 ? prev - 1 : images.length - 1));
+  };
+
+  const nextImage = (e) => {
+    e.stopPropagation();
+    setActiveImgIndex((prev) => (prev < images.length - 1 ? prev + 1 : 0));
+  };
+
   const sellerName = product.seller?.name || product.sellerName || "Neighbor";
 
   return (
@@ -60,13 +81,58 @@ export function ProductDetailsModal({ product, onClose, onViewSeller, onOpenAuth
         </button>
 
         <div className="overflow-y-auto flex-1">
-          <div className="relative aspect-16/9 bg-gray-100 dark:bg-gray-700">
-            <img src={product.image} alt={product.title} className="w-full h-full object-cover" />
-            <div className="absolute top-3 left-3 flex gap-1.5">
+          <div className="relative aspect-16/9 bg-gray-100 dark:bg-gray-700 select-none">
+            <img
+              src={images[activeImgIndex] || images[0]}
+              alt={product.title}
+              className="w-full h-full object-cover"
+            />
+            <div className="absolute top-3 left-3 flex gap-1.5 z-10">
               <span className="px-2.5 py-0.5 bg-black/60 text-white text-xs font-semibold rounded-full capitalize">{product.listingType}</span>
               <span className="px-2.5 py-0.5 bg-white/80 dark:bg-gray-800 text-gray-800 dark:text-gray-100 text-xs font-semibold rounded-full">{product.condition}</span>
             </div>
+
+            {images.length > 1 && (
+              <>
+                <button
+                  type="button"
+                  onClick={prevImage}
+                  className="absolute left-2.5 top-1/2 -translate-y-1/2 p-1.5 rounded-full bg-black/50 hover:bg-black/80 text-white cursor-pointer transition-colors z-10"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={nextImage}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1.5 rounded-full bg-black/50 hover:bg-black/80 text-white cursor-pointer transition-colors z-10"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+                <div className="absolute bottom-2.5 right-3 px-2 py-0.5 bg-black/60 text-white text-[11px] font-semibold rounded-md z-10">
+                  {activeImgIndex + 1} / {images.length}
+                </div>
+              </>
+            )}
           </div>
+
+          {images.length > 1 && (
+            <div className="flex gap-2 p-2.5 bg-gray-50 dark:bg-gray-800/80 border-b border-gray-100 dark:border-gray-700 overflow-x-auto">
+              {images.map((img, idx) => (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => setActiveImgIndex(idx)}
+                  className={`relative w-12 h-12 rounded-lg overflow-hidden shrink-0 border-2 transition-all cursor-pointer ${
+                    activeImgIndex === idx
+                      ? "border-emerald-600 scale-105 shadow-xs"
+                      : "border-transparent opacity-60 hover:opacity-100"
+                  }`}
+                >
+                  <img src={img} alt={`Thumb ${idx + 1}`} className="w-full h-full object-cover" />
+                </button>
+              ))}
+            </div>
+          )}
 
           <div className="p-5 space-y-4">
             <div>

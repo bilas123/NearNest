@@ -46,6 +46,10 @@ const productSchema = new mongoose.Schema({
     type: String,
     default: "",
   },
+  images: {
+    type: [String],
+    default: [],
+  },
   sellerRating: {
     type: Number,
     default: 0,
@@ -64,5 +68,15 @@ const productSchema = new mongoose.Schema({
     default: "available",
   },
 }, { timestamps: true });
+
+// Ensure image and images stay synchronized
+productSchema.pre("save", function (next) {
+  if (Array.isArray(this.images) && this.images.length > 0) {
+    if (!this.image) this.image = this.images[0];
+  } else if (this.image) {
+    this.images = [this.image];
+  }
+  next();
+});
 
 module.exports = mongoose.model("Product", productSchema);

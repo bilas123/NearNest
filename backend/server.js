@@ -26,9 +26,9 @@ app.use((req, res, next) => {
   next();
 });
 
-// Parse JSON request bodies (supports base64 image uploads)
-app.use(express.json({ limit: "10mb" }));
-app.use(express.urlencoded({ limit: "10mb", extended: true }));
+// Parse JSON request bodies (supports base64 image uploads up to 5 photos)
+app.use(express.json({ limit: "50mb" }));
+app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
 // Health check route
 app.get("/api/health", (req, res) => {

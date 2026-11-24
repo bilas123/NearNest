@@ -51,11 +51,18 @@ export function ProductCard({ product, onSelect, onSelectSeller, buyerCoords }) 
       {/* Product Image */}
       <div className="relative aspect-4/3 w-full bg-gray-100 dark:bg-gray-700 overflow-hidden">
         <img
-          src={product.image}
+          src={product.images?.[0] || product.image || "https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=600"}
           alt={product.title}
           className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-300"
           loading="lazy"
         />
+
+        {/* Multi-image indicator */}
+        {product.images?.length > 1 && (
+          <div className="absolute bottom-2 right-2 px-2 py-0.5 bg-black/60 backdrop-blur-xs text-white text-[10px] font-semibold rounded-md flex items-center space-x-1 pointer-events-none">
+            <span>📷 {product.images.length}</span>
+          </div>
+        )}
 
         {/* Listing Type Badge (Sell / Rent / Donate) */}
         <div className="absolute top-3 left-3">

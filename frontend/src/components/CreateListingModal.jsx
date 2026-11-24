@@ -5,7 +5,7 @@ import { LocationPickerModal } from "./LocationPickerModal";
 const INIT = {
   title: "", category: "Textbooks", listingType: "sell",
   price: "", condition: "Good", location: "Kolkata",
-  description: "", image: "",
+  description: "", images: [],
 };
 
 const inputCls = "w-full px-3.5 py-2.5 bg-gray-50 dark:bg-gray-700/80 border border-gray-200 dark:border-gray-600 rounded-xl text-gray-900 dark:text-white focus:outline-none focus:border-emerald-500 transition-all text-xs";
@@ -22,12 +22,41 @@ export function CreateListingModal({ isOpen, onClose, onCreateListing }) {
   const update = (k, v) => setForm((p) => ({ ...p, [k]: v }));
 
   const handleImageChange = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (file.size > 5 * 1024 * 1024) return setError("Image must be smaller than 5MB");
-    const reader = new FileReader();
-    reader.onloadend = () => update("image", reader.result);
-    reader.readAsDataURL(file);
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
+    setError("");
+
+    if (form.images.length + files.length > 5) {
+      setError("Maximum 5 images allowed");
+    }
+
+    const availableSlots = 5 - form.images.length;
+    if (availableSlots <= 0) return;
+
+    const filesToUpload = files.slice(0, availableSlots);
+
+    filesToUpload.forEach((file) => {
+      if (file.size > 5 * 1024 * 1024) {
+        setError("Each image must be smaller than 5MB");
+        return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setForm((prev) => {
+          if (prev.images.length >= 5) return prev;
+          return { ...prev, images: [...prev.images, reader.result] };
+        });
+      };
+      reader.readAsDataURL(file);
+    });
+    e.target.value = "";
+  };
+
+  const removeImage = (indexToRemove) => {
+    setForm((prev) => ({
+      ...prev,
+      images: prev.images.filter((_, idx) => idx !== indexToRemove),
+    }));
   };
 
   const handleSubmit = async (e) => {
@@ -38,6 +67,9 @@ export function CreateListingModal({ isOpen, onClose, onCreateListing }) {
 
     try {
       const token = localStorage.getItem("token");
+      const defaultImg = "https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=600";
+      const finalImages = form.images.length > 0 ? form.images : [defaultImg];
+
       const res = await fetch("/api/products", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
@@ -46,7 +78,8 @@ export function CreateListingModal({ isOpen, onClose, onCreateListing }) {
           title: form.title.trim(),
           price: form.listingType === "donate" ? 0 : Number(form.price) || 0,
           coordinates: coordinates || undefined,
-          image: form.image || "https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=600",
+          images: finalImages,
+          image: finalImages[0] || defaultImg,
         }),
       });
 
@@ -98,21 +131,51 @@ export function CreateListingModal({ isOpen, onClose, onCreateListing }) {
             <input type="text" required value={form.title} onChange={(e) => update("title", e.target.value)} placeholder="e.g. Casio fx-991EX Calculator" className={inputCls} />
           </div>
 
-          {/* Photo Upload */}
+          {/* Photo Upload (up to 5 images) */}
           <div>
-            <label className={labelCls}>Photo</label>
-            {form.image ? (
-              <div className="relative w-full h-28 rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700">
-                <img src={form.image} alt="Preview" className="w-full h-full object-cover" />
-                <button type="button" onClick={() => update("image", "")} className="absolute top-2 right-2 p-1 bg-black/60 hover:bg-black text-white rounded-full cursor-pointer"><X className="w-3.5 h-3.5" /></button>
-              </div>
-            ) : (
-              <label className="flex flex-col items-center justify-center w-full h-20 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl cursor-pointer hover:border-emerald-500 bg-gray-50/50 dark:bg-gray-700/30">
-                <Upload className="w-4 h-4 text-gray-400 mb-0.5" />
-                <span className="text-[11px] text-gray-500">Upload photo from device</span>
-                <input type="file" accept="image/*" onChange={handleImageChange} className="hidden" />
-              </label>
-            )}
+            <div className="flex items-center justify-between mb-1">
+              <label className={labelCls}>Photos (Max 5)</label>
+              <span className="text-[11px] font-medium text-gray-400">
+                {form.images.length}/5 uploaded
+              </span>
+            </div>
+
+            <div className="grid grid-cols-5 gap-2">
+              {form.images.map((img, idx) => (
+                <div key={idx} className="relative aspect-square rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700 group">
+                  <img src={img} alt={`Preview ${idx + 1}`} className="w-full h-full object-cover" />
+                  {idx === 0 && (
+                    <span className="absolute bottom-1 left-1 px-1.5 py-0.5 bg-emerald-600/90 text-[9px] text-white font-bold rounded">
+                      Cover
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => removeImage(idx)}
+                    className="absolute top-1 right-1 p-0.5 bg-black/70 hover:bg-black text-white rounded-full cursor-pointer transition-colors"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              ))}
+
+              {form.images.length < 5 && (
+                <label className="flex flex-col items-center justify-center aspect-square border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl cursor-pointer hover:border-emerald-500 bg-gray-50/50 dark:bg-gray-700/30 transition-colors">
+                  <Upload className="w-4 h-4 text-gray-400 mb-0.5" />
+                  <span className="text-[10px] text-gray-500 text-center leading-tight">
+                    {form.images.length === 0 ? "Upload" : "+ Add"}
+                  </span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    onChange={handleImageChange}
+                    className="hidden"
+                  />
+                </label>
+              )}
+            </div>
+            <p className="text-[10px] text-gray-400 mt-1">Upload up to 5 photos. First photo is used as listing cover.</p>
           </div>
 
           {/* Category & Condition */}

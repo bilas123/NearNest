@@ -56,7 +56,7 @@ router.get("/:id", async (req, res) => {
 // POST /api/products — create product (login required)
 router.post("/", auth, async (req, res) => {
   try {
-    const { title, description, price, listingType, category, condition, location, coordinates, image } = req.body;
+    const { title, description, price, listingType, category, condition, location, coordinates, image, images } = req.body;
 
     if (!title || !description || !listingType || !category) {
       return res.status(400).json({ message: "Title, description, listing type, and category are required" });
@@ -73,6 +73,12 @@ router.post("/", auth, async (req, res) => {
       : 0;
     const reliabilityScore = sellerTrades > 0 ? "100%" : "New Seller";
 
+    // Process up to 5 images
+    const rawImages = Array.isArray(images) && images.length > 0
+      ? images
+      : (image ? [image] : []);
+    const productImages = rawImages.slice(0, 5);
+
     const product = await Product.create({
       seller: req.user._id,
       title,
@@ -83,7 +89,8 @@ router.post("/", auth, async (req, res) => {
       condition,
       location,
       coordinates: Array.isArray(coordinates) && coordinates.length === 2 ? coordinates : undefined,
-      image,
+      image: productImages[0] || "",
+      images: productImages,
       sellerTrades,
       sellerRating,
       reliabilityScore,

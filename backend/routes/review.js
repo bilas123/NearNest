@@ -41,13 +41,19 @@ router.post("/", auth, async (req, res) => {
       return res.status(400).json({ message: "You have already reviewed this order" });
     }
 
+    // Security check 4: Short review note max 500 characters
+    const trimmedComment = (comment || "").trim();
+    if (trimmedComment.length > 500) {
+      return res.status(400).json({ message: "Review note must be 500 characters or less" });
+    }
+
     const review = await Review.create({
       order: order._id,
       buyer: req.user._id,
       seller: order.seller,
       product: order.product,
       rating: numRating,
-      comment: (comment || "").trim(),
+      comment: trimmedComment,
     });
 
     await review.populate("buyer", "name");
