@@ -98,8 +98,8 @@ router.post("/", auth, async (req, res) => {
 
     res.status(201).json(product);
   } catch (error) {
-    console.error("Create product error:", error.message);
-    res.status(500).json({ message: "Server error" });
+    console.error("Create product error:", error);
+    res.status(500).json({ message: error.message || "Failed to create product" });
   }
 });
 

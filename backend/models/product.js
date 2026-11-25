@@ -70,13 +70,12 @@ const productSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 // Ensure image and images stay synchronized
-productSchema.pre("save", function (next) {
+productSchema.pre("save", function () {
   if (Array.isArray(this.images) && this.images.length > 0) {
     if (!this.image) this.image = this.images[0];
   } else if (this.image) {
     this.images = [this.image];
   }
-  next();
 });
 
 module.exports = mongoose.model("Product", productSchema);

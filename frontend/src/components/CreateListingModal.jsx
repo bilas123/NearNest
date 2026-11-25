@@ -1,6 +1,44 @@
 import React, { useState } from "react";
-import { X, PlusCircle, Sparkles, Upload, Compass } from "lucide-react";
+import { X, PlusCircle, Sparkles, Upload, Compass, Loader2 } from "lucide-react";
 import { LocationPickerModal } from "./LocationPickerModal";
+
+// Compress image to max 1000px & lightweight JPEG (~80KB) to stay well under MongoDB 16MB document limit
+function compressImage(file) {
+  return new Promise((resolve, reject) => {
+    if (!file || !file.type.startsWith("image/")) {
+      return reject(new Error("Please upload valid image files"));
+    }
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("Failed to read image"));
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onerror = () => reject(new Error("Failed to process image"));
+      img.onload = () => {
+        const MAX_DIM = 1000;
+        let { width, height } = img;
+        if (width > height) {
+          if (width > MAX_DIM) {
+            height = Math.round((height * MAX_DIM) / width);
+            width = MAX_DIM;
+          }
+        } else {
+          if (height > MAX_DIM) {
+            width = Math.round((width * MAX_DIM) / height);
+            height = MAX_DIM;
+          }
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL("image/jpeg", 0.72));
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
 
 const INIT = {
   title: "", category: "Textbooks", listingType: "sell",
@@ -16,12 +54,13 @@ export function CreateListingModal({ isOpen, onClose, onCreateListing }) {
   const [coordinates, setCoordinates] = useState(null);
   const [isMapOpen, setIsMapOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [compressing, setCompressing] = useState(false);
   const [error, setError] = useState("");
 
   if (!isOpen) return null;
   const update = (k, v) => setForm((p) => ({ ...p, [k]: v }));
 
-  const handleImageChange = (e) => {
+  const handleImageChange = async (e) => {
     const files = Array.from(e.target.files || []);
     if (!files.length) return;
     setError("");
@@ -34,22 +73,22 @@ export function CreateListingModal({ isOpen, onClose, onCreateListing }) {
     if (availableSlots <= 0) return;
 
     const filesToUpload = files.slice(0, availableSlots);
+    setCompressing(true);
 
-    filesToUpload.forEach((file) => {
-      if (file.size > 5 * 1024 * 1024) {
-        setError("Each image must be smaller than 5MB");
-        return;
-      }
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setForm((prev) => {
-          if (prev.images.length >= 5) return prev;
-          return { ...prev, images: [...prev.images, reader.result] };
-        });
-      };
-      reader.readAsDataURL(file);
-    });
-    e.target.value = "";
+    try {
+      const compressedList = await Promise.all(
+        filesToUpload.map((f) => compressImage(f))
+      );
+      setForm((prev) => ({
+        ...prev,
+        images: [...prev.images, ...compressedList].slice(0, 5),
+      }));
+    } catch {
+      setError("Failed to compress one or more images. Please try another image.");
+    } finally {
+      setCompressing(false);
+      e.target.value = "";
+    }
   };
 
   const removeImage = (indexToRemove) => {
@@ -161,14 +200,19 @@ export function CreateListingModal({ isOpen, onClose, onCreateListing }) {
 
               {form.images.length < 5 && (
                 <label className="flex flex-col items-center justify-center aspect-square border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl cursor-pointer hover:border-emerald-500 bg-gray-50/50 dark:bg-gray-700/30 transition-colors">
-                  <Upload className="w-4 h-4 text-gray-400 mb-0.5" />
+                  {compressing ? (
+                    <Loader2 className="w-4 h-4 text-emerald-600 animate-spin mb-0.5" />
+                  ) : (
+                    <Upload className="w-4 h-4 text-gray-400 mb-0.5" />
+                  )}
                   <span className="text-[10px] text-gray-500 text-center leading-tight">
-                    {form.images.length === 0 ? "Upload" : "+ Add"}
+                    {compressing ? "Optimizing..." : form.images.length === 0 ? "Upload" : "+ Add"}
                   </span>
                   <input
                     type="file"
                     accept="image/*"
                     multiple
+                    disabled={compressing}
                     onChange={handleImageChange}
                     className="hidden"
                   />
@@ -224,9 +268,9 @@ export function CreateListingModal({ isOpen, onClose, onCreateListing }) {
 
         <div className="p-4 border-t border-gray-100 dark:border-gray-700 flex items-center justify-between">
           <button type="button" onClick={onClose} className="px-4 py-2 text-xs font-semibold text-gray-500 hover:bg-gray-100 rounded-xl cursor-pointer">Cancel</button>
-          <button type="submit" form="create-listing-form" disabled={loading}
+          <button type="submit" form="create-listing-form" disabled={loading || compressing}
             className="inline-flex items-center space-x-1 px-5 py-2 bg-emerald-600 text-white rounded-xl text-xs font-bold shadow hover:bg-emerald-700 cursor-pointer disabled:opacity-50">
-            <Sparkles className="w-3.5 h-3.5" /><span>{loading ? "Saving..." : "Publish"}</span>
+            <Sparkles className="w-3.5 h-3.5" /><span>{loading ? "Saving..." : compressing ? "Optimizing..." : "Publish"}</span>
           </button>
         </div>
       </div>
